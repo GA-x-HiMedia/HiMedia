@@ -1,7 +1,7 @@
 # HiMedia WhatsApp Agent
 
 **General Assembly × JoinFuture Solutions W.L.L. — Two-Week Capstone**
-Students: Sara Alnajjar, Reem AlShehabi, Zainab Mohammed
+Students: Sara Alnajjar, Reem AlShehabi, Zainab Mohammed.
 
 ## How to run it
 
