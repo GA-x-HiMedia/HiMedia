@@ -1,6 +1,7 @@
 # HiMedia WhatsApp Agent — Phase 1 + Phase 2
 
 **General Assembly × JoinFuture Solutions W.L.L. — Two-Week Capstone**
+Students: Sara Alnajjar, Reem AlShehabi, Zainab Mohammed.
 
 This bundle contains only what Phases 1 and 2 need. No write tools, no
 WhatsApp integration — those are Phase 3 and Phase 4. Adding them before
