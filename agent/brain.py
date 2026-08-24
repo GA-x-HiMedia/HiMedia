@@ -12,6 +12,12 @@ proceeding.
 
 Every tool call, read or write, confirmed or refused, is logged via
 audit.log_tool_call (Phase 4 — "a log of every tool call").
+
+NOTE: using Gemini via Google's OpenAI-compatible endpoint, not OpenAI
+directly — the team's issued key is a Google AI Studio key. This is a
+documented deviation from the handbook's stated stack (OpenAI,
+gpt-4.1-mini); flagged to instructors. Everything else about the project
+is unchanged — only the model provider differs.
 """
 from __future__ import annotations
 
@@ -20,12 +26,12 @@ import json
 from openai import OpenAI
 
 from . import audit, memory
-from .config import OPENAI_KEY
+from .config import GEMINI_API_KEY, GEMINI_BASE_URL
 from .himedia import ApiRefused
 from .tools import describe, public_part, tools_for
 
 _ai_client: OpenAI | None = None
-MODEL = "gpt-4.1-mini"
+MODEL = "gemini-3.6-flash"
 MAX_ROUNDS = 6  # a hard stop — never let this run free
 
 AFFIRMATIVE = {
@@ -43,7 +49,7 @@ def _client() -> OpenAI:
     to already be set — only actually *talking to the model* does."""
     global _ai_client
     if _ai_client is None:
-        _ai_client = OpenAI(api_key=OPENAI_KEY)
+        _ai_client = OpenAI(api_key=GEMINI_API_KEY, base_url=GEMINI_BASE_URL)
     return _ai_client
 
 
