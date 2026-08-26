@@ -27,7 +27,7 @@ cp .env.example .env
 # add a real OPENAI_API_KEY; WhatsApp values only needed for Phase 4
 ```
 
-## Phase 1 — Understand the System (Days 1–2)
+## Phase 1 — Understand the System
 
 **Gate:** one command prints all 13 seeded people's role, permissions,
 and task count — real data, from the live API.
@@ -46,7 +46,7 @@ python -m agent.explore
 
 See `PERMISSIONS.md` for the tenant-isolation rules this confirmed.
 
-## Phase 2 — Identity and Permissions (Days 3–5)
+## Phase 2 — Identity and Permissions
 
 **Gate:** hold a real conversation in a terminal, as three different
 people, and each one gets a correctly different answer.
@@ -65,7 +65,7 @@ Five read-only tools, filtered per caller's live permissions:
 | `list_versions` | `reviews:read` |
 | `get_review_notes` | `reviews:read` |
 
-## Phase 3 — Actions and Safety (Days 6–7)
+## Phase 3 — Actions and Safety
 
 **Gate:** the agent changes real data only after a human says yes, and
 the leak test runs clean as a client account. **This gate carries 30% of
@@ -118,7 +118,7 @@ asked, which tool, with what arguments, what came back, how long it
 took, whether it was allowed or refused. This is the trace record for
 debugging and for the conversation-log submission requirement.
 
-## Phase 4 — WhatsApp and Ship (Days 8–10)
+## Phase 4 — WhatsApp and Ship
 
 **Gate:** a real phone messages the agent and gets a correct answer.
 Someone outside the team clones the repo, follows this README, and runs

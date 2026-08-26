@@ -1,14 +1,30 @@
 """
-Terminal test harness (Chapter 29). Run with:
+Terminal test harness. Run with:
 
     python -m agent.cli
 
-Drives brain.reply_to directly — no WhatsApp, no webhook, no tunnel. This
-is where most development should happen through Day 7; only Day 8 wires up
-WhatsApp (Chapter 31 — "teams that wire up WhatsApp on day one spend three
-days debugging tunnels instead of building an agent").
+Drives brain.reply_to directly — no WhatsApp, no webhook, no tunnel.
+
+Status indicator: while waiting for a reply, this prints "Thinking…" /
+"Calling <tool_name>…" on a single line that overwrites itself in place
+(via \\r), instead of scrolling the terminal. The line is cleared right
+before the final reply is printed.
 """
 from . import brain, identity
+
+
+def _make_status_printer():
+    """Returns a callback that overwrites one terminal line per status
+    update, padding with spaces to erase any leftover characters from a
+    longer previous message (e.g. "Calling update_task_status…" -> "Thinking…")."""
+    last_len = [0]
+
+    def _status(text: str) -> None:
+        pad = max(last_len[0] - len(text), 0)
+        print(f"\r{text}{' ' * pad}", end="", flush=True)
+        last_len[0] = len(text)
+
+    return _status
 
 
 def main() -> None:
@@ -35,7 +51,10 @@ def main() -> None:
             break
         if not message:
             continue
-        print(brain.reply_to(person, message, phone))
+
+        status = _make_status_printer()
+        reply = brain.reply_to(person, message, phone, on_status=status)
+        print("\r" + " " * 40 + "\r" + reply)  # clear the status line, then show the answer
 
 
 if __name__ == "__main__":
