@@ -9,3 +9,6 @@ __pycache__/
 venv/
 
 .env
+
+# Audit logs
+audit.log
