@@ -484,3 +484,39 @@ set. That keeps the identity and permission half usable today.
   They are for humans reading the file, not for git.
 - Corrected a stale docstring in `himedia.py` that still called the
   client_visible question unconfirmed — it was proven live in Step 10.
+
+## Step 12 — device verification moved to the right path
+
+**Answered before changing anything:** the OTP was ALREADY on the correct path.
+`whatsapp.think_and_send` read
+`device_gate(sender, text) if person is not None else None`, so an unknown
+number never reached it — it fell through to the refusal. Nothing to move.
+
+Two real weaknesses were there instead, and both are fixed:
+
+- **The guarantee lived in the caller, not the function.** Any future caller
+  (cli.py, a test, a new entry point) could have called `device_gate` without
+  the `person is not None` guard and started sending codes to strangers.
+  `device_gate` now takes `person` and returns the refusal itself when it is
+  None, so the ordering cannot be broken from outside.
+- **Two refusal strings existed.** whatsapp.py had its own inline Arabic
+  string while `identity.UNKNOWN_NUMBER_REPLY` also existed. Consolidated to
+  the constant, which is what the new test asserts against — one string, one
+  place, testable.
+
+- Chose NOT to send a code to an unknown number, and pinned it with a test
+  that also checks the refusal contains no hint of verification. An OTP prompt
+  would confirm the system exists and that we are processing them; the flat
+  refusal says nothing at all.
+- **Device memory lives in `agent/identity.py`** — module-level
+  `_verified_devices` set and `_pending_codes` dict, in process. NOT memory.py.
+  It dies on restart and everyone is challenged again. Documented in the README
+  rather than fixed: durable storage is out of scope and Ch. 34 warns against
+  adding features late.
+- Stopped exactly where instructed: path fixed, four cases tested, README
+  paragraph written. No email sending, no expiry policy, no rate limiting.
+- Renamed the commit off the "TEMP (Sara task)" prefix — Reem built it, so it
+  carries a normal message. Kept `reem-before-reword` as a safety branch; the
+  rewrite touched only commit messages, never content.
+- Consolidated the attribution markers to ONE block per file, under the module
+  docstring, listing that file edits. Nineteen scattered markers were noise.
