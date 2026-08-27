@@ -334,7 +334,7 @@ RUN_LIVE_TESTS=1 pytest -v -s    # + live tests against the real sandbox/model
 | `test_confirmation_flow.py` | hold/confirm/cancel logic, stubbed tool (no real write) | no |
 | `test_leak_regressions.py` | one test per leak fixed, against a fake sandbox | no |
 | `test_exact_phrase_confirmation.py` | the exact-phrase gate on `decide_version` | no |
-| `test_device_verification.py` | first-device one-time code (TEMP, Sara's area) | no |
+| `test_device_verification.py` | first-device one-time code, and the unknown-number refusal that must never become one | no |
 | `test_memory.py`, `test_audit.py`, `test_himedia.py`, `test_whatsapp.py` | history, logging, API wrapper, webhook | no |
 | `test_correctness_live.py` | Chapter 30 correctness checklist, real people | **yes** |
 | `test_leak_live.py` | adversarial leak suite — 30% of the grade | **yes** |

@@ -436,7 +436,16 @@ names that matter most, from the forbidden list. Both fixed;
   proper nouns (capitalised mid-sentence, so sentence-initial words do not
   count) and anything carrying a digit.
 
-### Sara's task — stopped, as instructed
+### The device check — stopped, as instructed
+
+> **Correction, added later.** This section was written while the first-device
+> check was still logged as Sara's area. It is not: Sara handed the task to
+> Reem, so the work below is Reem's own and the implementation in
+> `identity.py` is the real one, not a placeholder standing in until Sara's
+> lands. The "TEMP (Sara's task)" comment block has been removed from the code
+> and the module docstring corrected — it still claimed the shipped path did
+> not verify the device, which stopped being true two commits earlier. The
+> reasoning recorded below stands unchanged; only the name on it was wrong.
 
 Built nothing further on the TEMP commit. Ch. 13 says the OTP is explicitly not
 required and that the README should say we know it is missing; Ch. 34 warns
@@ -514,7 +523,15 @@ Two real weaknesses were there instead, and both are fixed:
   rather than fixed: durable storage is out of scope and Ch. 34 warns against
   adding features late.
 - Stopped exactly where instructed: path fixed, four cases tested, README
-  paragraph written. No email sending, no expiry policy, no rate limiting.
+  paragraph written. No email sending, no rate limiting.
+- **Correction to the line above, which used to also claim "no expiry
+  policy".** That was wrong as written. A code does expire after ten minutes
+  (`CODE_SECONDS`), and `test_an_expired_code_is_refused` covers it. It was not
+  added late — it shipped in the original first-device commit, before the
+  instruction to stop. So nothing was built after the stop; the claim was just
+  inaccurate about what was already there. Left in place deliberately: removing
+  a working, tested behaviour this late is itself a late change, and an
+  unexpiring one-time code is a worse answer than an expiring one.
 - Renamed the commit off the "TEMP (Sara task)" prefix — Reem built it, so it
   carries a normal message. Kept `reem-before-reword` as a safety branch; the
   rewrite touched only commit messages, never content.

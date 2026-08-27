@@ -3,10 +3,11 @@ Turn a raw phone number into a person the rest of the agent can reason
 about. Nothing else happens until this succeeds (Chapter 24).
 
 A phone number is not proof of identity — sender IDs can be spoofed, SIMs
-get swapped. A production version of this agent would email a one-time
-code the first time it sees a new device before trusting the number. That
-is explicitly not required for this capstone (see README's "what is not
-finished" section) — but the sandbox lookup here is what stands in for it.
+get swapped, and a handset gets passed to a colleague (Chapter 13). So the
+lookup is not the whole of identity here: a known number on a device we have
+never seen is challenged with a one-time code first, and an unrecognised
+number is refused outright. See `device_gate` at the foot of this file, and
+the README's "what is not finished" section for the two limits that remain.
 """
 
 # edited by reem:
@@ -167,10 +168,12 @@ UNKNOWN_NUMBER_REPLY = (
 )
 
 
-# --- TEMP (Sara's task): first-device verification --------------------------
+# --- first-device verification ----------------------------------------------
 #
-# This is Sara's area, implemented at the smallest size that actually works so
-# the gate is not simply missing. Replace it with hers when it lands.
+# Reem's, by handover — Sara passed this task over rather than building it
+# herself, so this is the real implementation and not a placeholder waiting to
+# be replaced. Scoped deliberately small: the path is right, the four cases are
+# tested, and nothing further was added (Ch. 34 — no late features).
 #
 # A phone number is not proof of identity: sender IDs can be spoofed and SIMs
 # get swapped, and until now this project trusted a number the moment the API
