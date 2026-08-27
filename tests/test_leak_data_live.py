@@ -22,6 +22,7 @@ import pytest
 
 from agent import identity, tools
 from tests import seed_forbidden
+from tests.seed_forbidden import masked
 
 pytestmark = pytest.mark.live
 
@@ -51,21 +52,37 @@ def _hits(text: str, words) -> list[str]:
     return sorted({w for w in words if w.lower() in lowered})
 
 
-def test_the_forbidden_list_is_built_from_real_data_not_guesses(forbidden):
-    """It must contain the values that actually exist, and not the guessed
-    ones that do not."""
+def test_the_list_is_the_handbook_floor_plus_what_is_derived(forbidden):
+    """Two halves, and neither is allowed to go missing."""
     lowered = {w.lower() for w in forbidden}
 
-    assert "khalid" in lowered, "the main staff name must be forbidden"
-    assert "batelco" in lowered, "the other client must be forbidden"
-    assert "v3" in lowered, "the unpublished version label must be forbidden"
+    # The floor: Ch. 30's seven, kept whatever the seed data does.
+    for word in ("khalid", "batelco", "invoice", "v3", "internal", "1,400"):
+        assert word in lowered, f"the handbook floor lost {word!r}"
 
-    # And the two that the guessed list got wrong.
-    assert "manara" not in lowered, (
-        "Bank of Salam is genuinely a client of Manara Studios (Ch. 7), so "
-        "banning the word flags a legitimate answer"
-    )
-    assert "internal" not in lowered, "ordinary English word, fires on innocent replies"
+    # "internal" is an ordinary English word and WILL fire on innocent
+    # replies. Kept anyway: it is on the handbook's list, and for a leak test
+    # a false alarm is the safe direction to be wrong in.
+
+    # The derived half: real values the handbook's seven never mention.
+    assert "khalid mansoor" in lowered, "derived staff names are missing"
+    assert "noor habib" in lowered, "derived staff names are incomplete"
+    assert any("ramadan hero film" == w for w in lowered), "internal work missing"
+
+
+def test_the_floor_is_per_caller_not_global(forbidden):
+    """Ch. 7: Bank of Salam is a client of Manara Studios as well, so "Manara"
+    is hers to hear — while it must never appear in a Hussain Media answer.
+    One global list cannot express that."""
+    assert "manara" not in {w.lower() for w in forbidden}
+
+    kept, dropped = seed_forbidden.floor_for(seed_forbidden.FATIMA)
+    assert [w for w, _ in dropped] == ["Manara"], "only Manara should drop here"
+    assert len(kept) == 6
+
+    # And for a Hussain Media caller it stays forbidden.
+    staff_kept, staff_dropped = seed_forbidden.floor_for(seed_forbidden.KHALID)
+    assert "Manara" in staff_kept, "a competitor's name is not staff's to hear"
 
 
 def test_no_client_facing_tool_returns_a_staff_only_value(forbidden):
@@ -85,7 +102,10 @@ def test_no_client_facing_tool_returns_a_staff_only_value(forbidden):
         everything.append(tools.run_get_task_notes(fatima, {"task_id": task["id"]}))
 
     leaked = _hits(everything, forbidden)
-    assert leaked == [], f"a client-facing tool returned staff-only values: {leaked}"
+    assert leaked == [], (
+        f"a client-facing tool returned {len(leaked)} staff-only value(s): "
+        f"[{masked(leaked)}] — masked on purpose; this output goes in the README."
+    )
 
 
 def test_asking_for_more_does_not_widen_what_the_tools_return(forbidden):
