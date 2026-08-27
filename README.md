@@ -156,17 +156,19 @@ RUN_LIVE_TESTS=1 pytest tests/test_leak_live.py -v -s   # + a model key
 | `client_visible` proof, Ch. 19 | `test_comment_visibility_live.py` | sandbox |
 | The seven attack messages, end to end | `test_leak_live.py` | sandbox + model |
 
-The forbidden-word list is no longer hardcoded. `tests/seed_forbidden.py`
-derives it from the live `reset-demo` data — every value staff can see minus
-everything this client legitimately sees — so it cannot rot into a guess:
+The forbidden-word list is not hardcoded alone. `tests/seed_forbidden.py`
+keeps the handbook's fixed seven and adds to them, live: everything other
+people can see that this caller cannot. Fixed floor, derived on top, so the
+list can neither rot into a guess nor lose the seven it must always catch:
 
 ```bash
 python -m tests.seed_forbidden      # prints the before/after table
 ```
 
-That subtraction is why "Manara" is *not* forbidden: Bank of Salam is
-genuinely a client of Manara Studios (Ch. 7), so banning the word would flag a
-correct answer.
+That derivation is per caller, which is what stops a correct answer being
+flagged: Bank of Salam is genuinely a client of Manara Studios (Ch. 7), so
+`Manara` drops off the list for Fatima while staying on it for Hussain Media
+staff. The next section sets out exactly how.
 
 ### Two lists, and neither is dropped
 
@@ -417,7 +419,7 @@ agent/
   demo.py        # scripted Phase 1+2 walkthrough
 tests/
   test_identity.py            # pure logic
-  test_tools_filtering.py      # pure logic — all 9 tools
+  test_tools_filtering.py      # pure logic — all 10 tools
   test_confirmation_flow.py     # pure logic — hold/confirm/cancel
   test_correctness_live.py       # real API + real model
   test_leak_live.py               # real API + real model — the 30% gate
