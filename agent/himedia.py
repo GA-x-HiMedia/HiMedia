@@ -3,10 +3,7 @@ The only file that knows the HiMedia sandbox exists (Chapter 22). If a URL
 ever needs typing anywhere else in this project, it belongs here instead.
 """
 
-# edited by reem:
-#   - named every endpoint, so no URL is typed outside this file
-#   - list_task_comments takes client_visible_only
-#   - ApiRefused keeps message_ar
+# Endpoints are named here rather than typed at the call site.
 from __future__ import annotations
 
 import httpx
@@ -57,25 +54,14 @@ def patch(path: str, body: dict):
 
 # --- Named endpoints --------------------------------------------------------
 #
-# TEAM.md: "API URLs live in exactly one file: agent/himedia.py. If a URL
-# needs typing anywhere else in the project, it belongs here instead — no
-# exceptions." The generic get/post/patch above satisfy that only if callers
-# never type a path, so every endpoint the agent uses gets a name here and
-# tools.py calls the name.
-#
-# Restored from the earlier implementation on `reem-local-backup`, which had
-# these; the shared version had drifted to typing paths inside tools.py.
+# TEAM.md: API URLs live in exactly one file. Every endpoint the agent uses
+# gets a name here, and callers use the name instead of a path.
 
 
 def get_permissions(phone: str) -> dict:
     """Who this number belongs to, their role, and their live permissions.
     The first call made for any incoming message."""
     return get("/v1/permissions/by-phone", phone=phone)
-
-
-def check_permission(phone: str, module: str, level: str = "read") -> bool:
-    """Ask the API directly whether this number may do this thing."""
-    return bool(get("/v1/permissions/check", phone=phone, module=module, level=level).get("allowed"))
 
 
 def list_roles() -> list[dict]:
@@ -124,20 +110,11 @@ def list_task_comments(task_id: str, client_visible_only: bool = False) -> list[
     return get(f"/v1/tasks/{task_id}/comments", client_visible_only=client_visible_only)["data"]
 
 
-def list_deliverables(project_id: str | None = None) -> list[dict]:
-    return get("/v1/deliverables", project_id=project_id)["data"]
-
-
 def list_versions(phone: str | None = None, project_id: str | None = None,
                   deliverable_id: str | None = None, state: str | None = None) -> list[dict]:
     """Versions of a deliverable. A client only ever sees published ones."""
     return get("/v1/versions", phone=phone, project_id=project_id,
                deliverable_id=deliverable_id, state=state)["data"]
-
-
-def get_version(version_id: str) -> dict:
-    """By-id, and therefore NOT filtered by caller — see get_task."""
-    return get(f"/v1/versions/{version_id}")
 
 
 def list_version_comments(version_id: str, unresolved_only: bool = False) -> list[dict]:
