@@ -1,8 +1,5 @@
 
 
-# edited by reem: split the gates so a missing model key does not hide
-# the sandbox tests that would have run fine without one.
-
 import os
 
 import pytest

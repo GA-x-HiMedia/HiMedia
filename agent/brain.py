@@ -20,12 +20,6 @@ OpenAI-compatible endpoint — this keeps the `openai` Python library and
 the tool-calling code below unchanged.
 """
 
-# edited by reem:
-#   - CONFIRM_PHRASE — exact phrase for writes that cannot be undone
-#   - permissions re-checked when the write runs, not when it is parked
-#   - no preview of a write on a row the caller cannot see
-#   - per-stage timing, tagged ar or en
-#   (_system_prompt is Zainab's — untouched)
 from __future__ import annotations
 
 import json

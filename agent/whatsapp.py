@@ -4,8 +4,6 @@ back. Thin — this file should not contain any conversation logic of its
 own (Chapter 22, 28-29).
 """
 
-# edited by reem: routes through identity.device_gate, so an unknown
-# number is refused and a known number on a new device is challenged.
 from __future__ import annotations
 
 import logging
