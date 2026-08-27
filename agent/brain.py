@@ -1,31 +1,38 @@
 """
-The agent loop (Chapter 27). Takes a message and a person, returns a
-reply. Knows nothing about WhatsApp, which is what makes it testable from
-a terminal (Chapter 29) before any webhook exists.
+The agent loop. Takes a message and a person, returns a reply.
 
-Confirmation flow (Phase 3): when the model requests a write tool, we do
-NOT run it — we stash it in memory.hold() and return a one-line preview
-instead, ending the turn. The NEXT message either confirms (runs the held
-action), declines (discards it), or — if it's neither — we remind the
-person what's still pending rather than silently dropping it or silently
-proceeding.
+Confirmation flow: when the model requests a write tool, it is not run —
+it's stashed via memory.hold() and a one-line preview is returned instead,
+ending the turn. The next message either confirms (runs the held action),
+declines (discards it), or if it's neither, reminds the person what's
+still pending.
 
 Every tool call, read or write, confirmed or refused, is logged via
-audit.log_tool_call (Phase 4 — "a log of every tool call").
+audit.log_tool_call.
+
+Status indicator: reply_to() takes an optional on_status callback that
+fires "Thinking…" before each model round and "Calling <tool_name>…"
+before each tool call/hold. Callers that don't pass one (tests, demo.py)
+are unaffected — _emit() is a no-op without a listener.
+
+Gemini is used here as a temporary replacement, reached through Google's
+OpenAI-compatible endpoint — this keeps the `openai` Python library and
+the tool-calling code below unchanged.
 """
 from __future__ import annotations
 
 import json
+from typing import Callable
 
-from openai import OpenAI
+from openai import OpenAI, RateLimitError
 
 from . import audit, memory
-from .config import OPENAI_KEY
+from .config import GEMINI_API_KEY, GEMINI_BASE_URL
 from .himedia import ApiRefused
 from .tools import describe, public_part, tools_for
 
 _ai_client: OpenAI | None = None
-MODEL = "gpt-4.1-mini"
+MODEL = "gemini-3.6-flash"
 MAX_ROUNDS = 6  # a hard stop — never let this run free
 
 AFFIRMATIVE = {
@@ -40,10 +47,19 @@ NEGATIVE = {
 
 def _client() -> OpenAI:
     """Created lazily so importing this module doesn't require an API key
-    to already be set — only actually *talking to the model* does."""
+    to already be set — only actually talking to the model does."""
     global _ai_client
     if _ai_client is None:
-        _ai_client = OpenAI(api_key=OPENAI_KEY)
+        if not GEMINI_API_KEY:
+            # Without this check, an empty key silently produces
+            # "Authorization: Bearer " and fails deep inside httpcore
+            # with an opaque LocalProtocolError. Catch it here instead.
+            raise RuntimeError(
+                "GEMINI_API_KEY is empty. Check .env in the project root has "
+                "GEMINI_API_KEY=<your key>, and that no empty GEMINI_API_KEY "
+                "is already exported in this shell."
+            )
+        _ai_client = OpenAI(api_key=GEMINI_API_KEY, base_url=GEMINI_BASE_URL)
     return _ai_client
 
 
@@ -69,6 +85,11 @@ def _system_prompt(person: dict) -> str:
         f"You are the HiMedia WhatsApp agent. You are talking to {name}, {role} at "
         f"{company}. {voice} Reply in the same language the person just used (Arabic or "
         "English) — people switch languages mid-conversation, detect it per message. "
+        "When replying in Arabic, use natural, clear Bahraini Arabic with a professional "
+        "and conversational tone. Use Bahraini dialect naturally where appropriate, but "
+        "do not overuse slang or force dialect. Keep technical and production terms clear "
+        "and accurate. Language and tone must never override audience restrictions or "
+        "permissions. "
         "Keep IDs, numbers, and dates in Latin digits regardless of language. Never "
         "invent a project, task, version, or number you did not get from a tool result. "
         "If a tool call is refused, tell the person plainly what happened in their "
@@ -89,7 +110,28 @@ def _log(person: dict, phone: str, tool_name: str, args: dict, out, duration_ms:
     )
 
 
-def reply_to(person: dict, message: str, phone: str) -> str:
+def _quota_message(person: dict) -> str:
+    """Gemini's free tier is capped at 20 requests/day per model — this
+    fires when that's exhausted, so the person gets a plain answer
+    instead of the conversation silently dying."""
+    if person["user"].get("locale") == "ar":
+        return "الخدمة وصلت الحد اليومي مؤقتًا. جرّب بعد شوي أو كلّم فريق الدعم."
+    return "The assistant has hit its daily usage limit for now. Please try again later."
+
+
+def _emit(on_status: Callable[[str], None] | None, text: str) -> None:
+    """Fire the status callback if one is attached. No-op otherwise, so
+    callers that don't care (tests, demo.py) pay nothing extra."""
+    if on_status is not None:
+        on_status(text)
+
+
+def reply_to(
+    person: dict,
+    message: str,
+    phone: str,
+    on_status: Callable[[str], None] | None = None,
+) -> str:
     pending = memory.peek_pending(phone)
     if pending is not None:
         return _handle_pending_reply(person, phone, message, pending)
@@ -102,11 +144,19 @@ def reply_to(person: dict, message: str, phone: str) -> str:
     messages.append({"role": "user", "content": message})
 
     for _ in range(MAX_ROUNDS):
-        answer = _client().chat.completions.create(
-            model=MODEL,
-            messages=messages,
-            tools=[public_part(t) for t in tools],
-        ).choices[0].message
+        _emit(on_status, "Thinking…")
+        try:
+            answer = _client().chat.completions.create(
+                model=MODEL,
+                messages=messages,
+                tools=[public_part(t) for t in tools],
+            ).choices[0].message
+        except RateLimitError:
+            # Free-tier quota exhausted — log it like any other failed
+            # step, then answer plainly instead of crashing the CLI or
+            # silently dropping a WhatsApp background task.
+            _log(person, phone, "gemini.chat.completions", {}, "rate_limited", 0.0, False)
+            return _quota_message(person)
         messages.append(answer)
 
         if not answer.tool_calls:
@@ -116,6 +166,7 @@ def reply_to(person: dict, message: str, phone: str) -> str:
 
         for call in answer.tool_calls:
             tool = by_name.get(call.function.name)  # must be in THIS turn's filtered list
+            _emit(on_status, f"Calling {call.function.name}…")
 
             if tool is None:
                 bad_args = json.loads(call.function.arguments or "{}")

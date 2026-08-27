@@ -5,12 +5,15 @@ own (Chapter 22, 28-29).
 """
 from __future__ import annotations
 
+import logging
 import httpx
 from fastapi import BackgroundTasks, FastAPI, Query, Request
 from fastapi.responses import PlainTextResponse
 
 from . import brain, identity
 from .config import WHATSAPP_PHONE_ID, WHATSAPP_TOKEN, WHATSAPP_VERIFY_TOKEN
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -51,7 +54,7 @@ async def incoming(request: Request, bg: BackgroundTasks):
 
 
 def send_whatsapp(to: str, text: str) -> None:
-    httpx.post(
+    response = httpx.post(
         f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_ID}/messages",
         headers={"Authorization": f"Bearer {WHATSAPP_TOKEN}"},
         json={
@@ -62,12 +65,29 @@ def send_whatsapp(to: str, text: str) -> None:
         },
         timeout=15.0,
     )
+    response.raise_for_status()
 
 
 def think_and_send(sender: str, text: str) -> None:
-    person = identity.who_is(sender)
-    if person is None:
-        reply = "ما لقيت رقمك في نظام HiMedia. كلّم مسؤول الحساب عندكم عشان يضيفك."
-    else:
-        reply = brain.reply_to(person, text, identity.tidy(sender))
-    send_whatsapp(sender, reply)
+    try:
+        person = identity.who_is(sender)
+
+        if person is None:
+            reply = (
+                "ما لقيت رقمك في نظام HiMedia. "
+                "كلّم مسؤول الحساب عندكم عشان يضيفك."
+            )
+        else:
+            reply = brain.reply_to(
+                person,
+                text,
+                identity.tidy(sender),
+            )
+
+        send_whatsapp(sender, reply)
+
+    except Exception:
+        logger.exception(
+            "Failed to process WhatsApp message from %s",
+            sender,
+        )
