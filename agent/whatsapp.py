@@ -72,6 +72,12 @@ def think_and_send(sender: str, text: str) -> None:
     try:
         person = identity.who_is(sender)
 
+        # TEMP (Sara's task): an unknown device verifies before anything else.
+        gate = identity.device_gate(sender, text) if person is not None else None
+        if gate is not None:
+            send_whatsapp(sender, gate)
+            return
+
         if person is None:
             reply = (
                 "ما لقيت رقمك في نظام HiMedia. "
