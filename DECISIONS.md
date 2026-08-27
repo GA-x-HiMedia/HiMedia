@@ -333,3 +333,138 @@ Reem asked for the exact-phrase gate to cover important actions generally —
   to declare itself, is treated as destructive. A test asserts every write tool
   in the catalogue has explicitly decided, so a new tool cannot skip the
   question by accident.
+
+## Step 10 — the handbook arrived, and corrected several things
+
+### A correction to my own earlier reporting
+
+I reported the sandbox as "down / host gone" because every call returned
+Railway's `{"code":404,"message":"Application not found"}`, on `/health` as
+well as `/v1/`. That was a wrong diagnosis stated too confidently: the right
+report was "every call from here is failing, here is the exact command, please
+try it yourself". Once `.env` existed with a real `HIMEDIA_API_KEY`, the same
+calls succeeded and the whole live suite ran. Lesson recorded rather than
+quietly fixed: a failing call is evidence about the call, not about the host.
+
+### Credentials
+
+- `.env` written with the base URL and the class key; confirmed `.env` is line
+  11 of `.gitignore` and untracked BEFORE writing it. The key appears in no
+  code, test, doc, commit message or printed output — only in `.env`.
+- `.env.example` committed with every variable the project reads, values blank
+  (handbook Ch. 33: "every variable your project needs, with the values blank").
+  It lists `OPENAI_API_KEY` plus the `GEMINI_*`/`GROQ_*`/`WHATSAPP_*` names
+  `config.py` actually reads — a stranger following the README needs all of
+  them, not just the three in current use.
+- **Flagged, not changed:** `brain.py` reads `GEMINI_API_KEY`, not
+  `OPENAI_API_KEY`. Dropping an OpenAI key into `.env` will therefore NOT make
+  the agent work. Left alone deliberately — switching provider is not my call.
+
+### Secret scan (handbook Ch. 33)
+
+- `git log -p` over `reem`, over `reem-local-backup`, and over the separate
+  old `whatsapp-agent` repo: **no key value in any commit, on any branch.**
+- `.env` DOES appear twice in main's history — added by `5c3da55`, deleted by
+  `38668f4`, both Sara's. Both are the empty blob `e69de29`, verified by
+  hashing an empty file. So an empty `.env` was committed and later removed;
+  no secret was ever in it. Nothing to rotate.
+
+### The visibility gates, reviewed per gate (Ch. 16 challenge)
+
+Ch. 16 says "almost every list endpoint accepts `phone=`" — and that is exactly
+right, for *list* endpoints. Proved the by-id ones do not, live:
+
+    GET /v1/tasks/tsk_0001?phone=<Fatima>  ->  "Edit the Ramadan hero film — v3"
+
+That is an internal task returned in full to a client's number, title and all,
+with `phone=` passed and ignored. Its comments came back the same way, carrying
+both staff names.
+
+| Gate | Endpoint behind it | Kind | Verdict |
+|---|---|---|---|
+| `run_get_review_notes` | `/v1/versions/{id}/comments` | by-id read, no `phone` | KEEP |
+| `run_get_task_notes` | `/v1/tasks/{id}` + `/comments` | by-id read, no `phone` | KEEP |
+| `run_update_task_status` | `PATCH /v1/tasks/{id}` | write, no actor param | KEEP |
+| `run_comment_on_task` | `POST /v1/tasks/{id}/comments` | write | KEEP |
+| `run_comment_on_version` | `POST /v1/versions/{id}/comments` | write | KEEP |
+| `run_decide_version` | `POST /v1/versions/{id}/decision` | write | KEEP |
+| `may_act_on` (preview) | the two above, before echoing an id | write preview | KEEP |
+
+- **Nothing removed: no gate sits on a list endpoint.** `run_list_tasks`,
+  `run_list_projects` and `run_list_versions` have no gate at all — they pass
+  `phone=` and trust the answer, exactly as Ch. 16 prescribes.
+- **Correcting an earlier claim of mine.** I wrote that "the sandbox does not
+  check company on a write". Ch. 21 says it does for two of them: a client
+  commenting on, or deciding, a version never published to their company gets
+  403. So those two gates are defence-in-depth rather than the only line. The
+  other two — `PATCH /v1/tasks/{id}` and the task-comment POST — are not
+  documented as audience-enforced and take no actor parameter at all, so there
+  the gate is the only thing there is. Did not verify the 403 live: it would
+  mean attempting a real cross-company approval on shared class data, and a
+  wrong guess corrupts another team's demo.
+- The cost is real and stays measured, not optimised (Step 6's rule): a gated
+  read is 2–3 calls. The fix, if we want it, is a short per-message cache of
+  the visible-id sets on the same logic as the 60s identity cache — deliberately
+  NOT done unasked, and Ch. 34 warns against adding things late.
+
+### What the handbook confirmed, now pinned as live tests
+
+- Ch. 20's isolation numbers — Khalid 8 versions, Fatima 3, Rashid 0 — and
+  Ch. 17's task counts, 5 and 2. All five assertions pass against the live
+  sandbox (`tests/test_isolation_live.py`).
+- Ch. 19's `client_visible_only` rule: confirmed live, QUESTIONS.md closed with
+  the evidence.
+
+### A field-level leak the row-level filter does not cover
+
+`?phone=` filters which ROWS a client gets, not which FIELDS. The live API
+returns Fatima her own two tasks with `assignee_name: "Khalid Mansoor"` and
+`"Noor Habib"` attached. Our `run_list_tasks` already drops it by picking
+fields explicitly, but nothing asserted that, and my forbidden-word derivation
+was subtracting the raw response — which deleted "Khalid" and "Noor", the two
+names that matter most, from the forbidden list. Both fixed;
+`test_leak_staff_assignee_name_on_the_clients_own_task` pins the behaviour.
+
+### Two derivation bugs found while reading the real output
+
+- `list_companies(kind="client")` matched nothing — Ch. 15 says the value is
+  `client_org`. The whole "other clients" category was silently empty, so
+  "Batelco" was not being forbidden at all.
+- Extracting every long word from internal comments produced forbidden words
+  like "grade", "until" and "opening" — ordinary English that fires on innocent
+  replies. Now keeps the whole comment body as an exact string, plus only
+  proper nouns (capitalised mid-sentence, so sentence-initial words do not
+  count) and anything carrying a digit.
+
+### Sara's task — stopped, as instructed
+
+Built nothing further on the TEMP commit. Ch. 13 says the OTP is explicitly not
+required and that the README should say we know it is missing; Ch. 34 warns
+against late features. Rewrote the README section as an honest "what is not
+finished" paragraph — a phone number is not proof of identity, what we would
+ship instead, and why the code out-of-band matters — and it now states plainly
+that the shipped path does not verify the device.
+
+**Flagged for a decision:** the TEMP commit wires `identity.device_gate` into
+`whatsapp.think_and_send`, so a real phone messaging the agent is asked for a
+six-digit code that only appears in the server log. That would intercept the
+Phase 4 gate and demo step 2. Left in place because the instruction was to
+leave the commit alone — but it is one line to disable and probably should be
+before any live demo.
+
+### A live-vs-handbook gap worth knowing
+
+Ch. 11 lists `client_approver` as reading projects. The live permission map for
+Fatima has no `projects` key at all, so `tools_for` does not offer her
+`list_projects` (she gets 7 of 10 tools; Khalid gets 10). We follow the live
+API, as PERMISSIONS.md requires — but it means a client cannot ask "what
+projects do I have?", which will look like a bug in the demo if nobody expects
+it. Not changed: hardcoding around the live map is the one thing Ch. 10 says
+never to do.
+
+### The CLI, which is the whole test setup until a model key exists
+
+`python -m agent.cli` now switches person when you type a different number
+(Ch. 14's trick), answers `who` with the caller's permissions and offered tool
+list, and prints a plain message instead of a stack trace when no model key is
+set. That keeps the identity and permission half usable today.

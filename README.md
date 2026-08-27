@@ -139,14 +139,34 @@ to get around a refusal.
 
 **The leak test** — the adversarial suite the grading explicitly targets:
 
+The suite is split by what it needs, so a missing model key never hides a
+test that would have run without one:
+
 ```bash
-RUN_LIVE_TESTS=1 pytest tests/test_leak_live.py -v -s
+pytest -q                                            # no network, no key
+RUN_LIVE_TESTS=1 pytest -q                           # + the live sandbox
+RUN_LIVE_TESTS=1 pytest tests/test_leak_live.py -v -s   # + a model key
 ```
 
-Sends seven attack messages as Fatima (client_approver @ Bank of Salam)
-and asserts a fixed list of forbidden internal terms never appears in any
-reply. **Update `FORBIDDEN_WORDS` in that file** against whatever the
-current `reset-demo` state actually contains before trusting it.
+| Layer | File | Needs |
+|---|---|---|
+| Filtering, against a fake sandbox | `test_leak_regressions.py` | nothing |
+| The data layer, against real data | `test_leak_data_live.py` | sandbox |
+| Tenant isolation, Ch. 20's numbers | `test_isolation_live.py` | sandbox |
+| `client_visible` proof, Ch. 19 | `test_comment_visibility_live.py` | sandbox |
+| The seven attack messages, end to end | `test_leak_live.py` | sandbox + model |
+
+The forbidden-word list is no longer hardcoded. `tests/seed_forbidden.py`
+derives it from the live `reset-demo` data — every value staff can see minus
+everything this client legitimately sees — so it cannot rot into a guess:
+
+```bash
+python -m tests.seed_forbidden      # prints the before/after table
+```
+
+That subtraction is why "Manara" is *not* forbidden: Bank of Salam is
+genuinely a client of Manara Studios (Ch. 7), so banning the word would flag a
+correct answer.
 
 **Timing per stage** (`audit.log_stage`) goes to the same log: each model
 round, each tool call, `identity.who_is` with cache hit or miss, rounds used
@@ -239,12 +259,27 @@ submission.
 
 Explicitly out of scope for the two-week capstone, not oversights:
 
-- **Device verification is a stand-in.** An unknown device is now asked for a
-  six-digit one-time code on first contact (`identity.device_gate`), and
-  verified devices are remembered. The code is written to the server log
-  because there is no mail service here — production must send it out of band,
-  by email, never back down the same WhatsApp thread. Marked TEMP in the commit
-  history; it belongs to Sara's area.
+- **A phone number is not proof of identity, and we do not verify it.**
+  This is the honest gap, and it is deliberate rather than forgotten. The
+  agent trusts a number the moment `GET /v1/permissions/by-phone` recognises
+  it. That is fine in a sandbox and wrong in production: sender IDs can be
+  spoofed, SIMs get swapped, and a handset gets lent to a colleague — and
+  since identity is the *only* thing our permission filtering keys off, anyone
+  holding the phone inherits that person's entire access.
+
+  What we would ship instead: on first contact from a device we have not seen
+  before, email a six-digit code to the address already on the user's HiMedia
+  record, answer nothing else until it comes back, and remember the device
+  after that. The code must travel **out of band** — sending it down the same
+  WhatsApp thread that asked for it proves nothing, because whoever holds the
+  number simply reads it. Losing a device would then mean revoking it centrally
+  rather than changing a phone number.
+
+  There is a minimal stand-in for this in `identity.device_gate` (added under a
+  `TEMP (Sara's task)` commit while checking whether the gate existed at all).
+  It is not the finished feature, it is not what this section is claiming
+  credit for, and the honest summary is the paragraph above: **the shipped path
+  does not verify the device.**
 - **No persistent memory or durable storage.** `agent/memory.py` is a
   plain dict — restarting the server forgets every conversation and any
   pending confirmation.

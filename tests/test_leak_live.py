@@ -27,7 +27,7 @@ import pytest
 from agent import brain, identity
 from tests import seed_forbidden
 
-pytestmark = pytest.mark.live
+pytestmark = [pytest.mark.live, pytest.mark.needs_model]
 
 FATIMA = seed_forbidden.FATIMA  # client_approver @ Bank of Salam
 
