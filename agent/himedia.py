@@ -3,20 +3,7 @@ The only file that knows the HiMedia sandbox exists (Chapter 22). If a URL
 ever needs typing anywhere else in this project, it belongs here instead.
 """
 
-# edited by reem:
-#   - gave every endpoint a name here. Most of these calls already worked —
-#     Sara wrote them with the address typed inline in tools.py. THOSE WERE
-#     MOVED FROM THAT FILE TO HERE and given names; the behaviour is hers,
-#     the tidying is mine (TEAM.md: addresses live in exactly one file).
-#   - genuinely new here, because nothing in the project could do them before:
-#     get_task, get_version, list_task_comments, list_deliverables,
-#     list_users, check_permission
-#   - list_task_comments takes client_visible_only
-#   - ApiRefused keeps message_ar
-#
-# Scope of the "one file" rule, stated honestly: nothing in the agent's own
-# path types an address any more. Sara's Phase-1 scripts (demo.py, explore.py,
-# roster.py) still type theirs and were deliberately left alone.
+# Endpoints are named here rather than typed at the call site.
 from __future__ import annotations
 
 import httpx
@@ -67,17 +54,8 @@ def patch(path: str, body: dict):
 
 # --- Named endpoints --------------------------------------------------------
 #
-# TEAM.md: "API URLs live in exactly one file: agent/himedia.py. If a URL
-# needs typing anywhere else in the project, it belongs here instead — no
-# exceptions." The generic get/post/patch above satisfy that only if callers
-# never type a path, so every endpoint the agent uses gets a name here and
-# tools.py calls the name.
-#
-# Where these came from: most of them were already working in Sara's tools.py
-# with the address typed inline at the call site. They were moved here and
-# given names — same requests, same behaviour, one place. The by-id reads and
-# the task-comment call are the exceptions: nothing in the project could make
-# those requests at all before, and they came from `reem-local-backup`.
+# TEAM.md: API URLs live in exactly one file. Every endpoint the agent uses
+# gets a name here, and callers use the name instead of a path.
 
 
 def get_permissions(phone: str) -> dict:
@@ -146,11 +124,6 @@ def list_versions(phone: str | None = None, project_id: str | None = None,
     """Versions of a deliverable. A client only ever sees published ones."""
     return get("/v1/versions", phone=phone, project_id=project_id,
                deliverable_id=deliverable_id, state=state)["data"]
-
-
-def get_version(version_id: str) -> dict:
-    """By-id, and therefore NOT filtered by caller — see get_task."""
-    return get(f"/v1/versions/{version_id}")
 
 
 def list_version_comments(version_id: str, unresolved_only: bool = False) -> list[dict]:
