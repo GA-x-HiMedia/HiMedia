@@ -64,11 +64,6 @@ def get_permissions(phone: str) -> dict:
     return get("/v1/permissions/by-phone", phone=phone)
 
 
-def check_permission(phone: str, module: str, level: str = "read") -> bool:
-    """Ask the API directly whether this number may do this thing."""
-    return bool(get("/v1/permissions/check", phone=phone, module=module, level=level).get("allowed"))
-
-
 def list_roles() -> list[dict]:
     return get("/v1/roles")["data"]
 
@@ -113,10 +108,6 @@ def list_task_comments(task_id: str, client_visible_only: bool = False) -> list[
     through tools.py, which sets the flag from the caller's audience.
     """
     return get(f"/v1/tasks/{task_id}/comments", client_visible_only=client_visible_only)["data"]
-
-
-def list_deliverables(project_id: str | None = None) -> list[dict]:
-    return get("/v1/deliverables", project_id=project_id)["data"]
 
 
 def list_versions(phone: str | None = None, project_id: str | None = None,
