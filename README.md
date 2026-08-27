@@ -156,17 +156,19 @@ RUN_LIVE_TESTS=1 pytest tests/test_leak_live.py -v -s   # + a model key
 | `client_visible` proof, Ch. 19 | `test_comment_visibility_live.py` | sandbox |
 | The seven attack messages, end to end | `test_leak_live.py` | sandbox + model |
 
-The forbidden-word list is no longer hardcoded. `tests/seed_forbidden.py`
-derives it from the live `reset-demo` data — every value staff can see minus
-everything this client legitimately sees — so it cannot rot into a guess:
+The forbidden-word list is not hardcoded alone. `tests/seed_forbidden.py`
+keeps the handbook's fixed seven and adds to them, live: everything other
+people can see that this caller cannot. Fixed floor, derived on top, so the
+list can neither rot into a guess nor lose the seven it must always catch:
 
 ```bash
 python -m tests.seed_forbidden      # prints the before/after table
 ```
 
-That subtraction is why "Manara" is *not* forbidden: Bank of Salam is
-genuinely a client of Manara Studios (Ch. 7), so banning the word would flag a
-correct answer.
+That derivation is per caller, which is what stops a correct answer being
+flagged: Bank of Salam is genuinely a client of Manara Studios (Ch. 7), so
+`Manara` drops off the list for Fatima while staying on it for Hussain Media
+staff. The next section sets out exactly how.
 
 ### Two lists, and neither is dropped
 
@@ -334,7 +336,7 @@ RUN_LIVE_TESTS=1 pytest -v -s    # + live tests against the real sandbox/model
 | `test_confirmation_flow.py` | hold/confirm/cancel logic, stubbed tool (no real write) | no |
 | `test_leak_regressions.py` | one test per leak fixed, against a fake sandbox | no |
 | `test_exact_phrase_confirmation.py` | the exact-phrase gate on `decide_version` | no |
-| `test_device_verification.py` | first-device one-time code (TEMP, Sara's area) | no |
+| `test_device_verification.py` | first-device one-time code, and the unknown-number refusal that must never become one | no |
 | `test_memory.py`, `test_audit.py`, `test_himedia.py`, `test_whatsapp.py` | history, logging, API wrapper, webhook | no |
 | `test_correctness_live.py` | Chapter 30 correctness checklist, real people | **yes** |
 | `test_leak_live.py` | adversarial leak suite — 30% of the grade | **yes** |
@@ -417,7 +419,7 @@ agent/
   demo.py        # scripted Phase 1+2 walkthrough
 tests/
   test_identity.py            # pure logic
-  test_tools_filtering.py      # pure logic — all 9 tools
+  test_tools_filtering.py      # pure logic — all 10 tools
   test_confirmation_flow.py     # pure logic — hold/confirm/cancel
   test_correctness_live.py       # real API + real model
   test_leak_live.py               # real API + real model — the 30% gate
