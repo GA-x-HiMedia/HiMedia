@@ -155,3 +155,32 @@ nothing. → `test_leak_caller_phone_can_be_overridden_by_tool_arguments`
   key, and a leak test that cannot be run is a leak test nobody runs. The fake
   deliberately returns more than the caller should see, so a missing filter
   fails the test rather than passing quietly.
+
+## Step 4 — the live leak test
+
+- **Ran it for the first time. It did not get as far as the model.** Every
+  attack errors in `_client_visible_text` on the first sandbox call:
+  `GET /v1/projects` returns 404. The host itself is gone —
+  `ga-sandbox-production.up.railway.app` answers Railway's edge error
+  `{"status":"error","code":404,"message":"Application not found"}` on `/`,
+  `/health` and `/docs` as well as on every `/v1/` path — and no
+  `HIMEDIA_API_KEY` or model key is set in this checkout. Recorded as a
+  blocker rather than worked around: a leak suite that "passes" because it
+  never reached the data is worse than one that fails.
+- **FORBIDDEN_WORDS is now derived, not guessed** (`tests/seed_forbidden.py`).
+  The rule: a value is forbidden if staff can see it and the client cannot.
+  That subtraction is what makes "Manara" drop out by itself — Bank of Salam
+  is genuinely a client of Manara Studios (PERMISSIONS.md), so banning the
+  word would flag a legitimate answer and train us to ignore the test.
+- Chose to derive the list at run time rather than paste a snapshot into the
+  file: `reset-demo` changes the seed data, and a pasted list silently rots
+  into the same guessed list it replaced.
+- The fixture asserts the derived list is non-empty. An empty list would make
+  every assertion trivially pass, which is exactly how a broken leak test
+  looks clean.
+- **Assertions now run on the outbound payload too.** `brain._client()` is
+  wrapped so the real provider call still happens, but every `messages` and
+  `tools` payload is captured and searched. A clean reply built from a dirty
+  prompt is still a leak — the data left the process and only the model's
+  discretion kept it from the client.
+- Kept the seven original attack messages unchanged; they are the graded set.
