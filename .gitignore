@@ -7,3 +7,8 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+
+.env
+
+# Audit logs
+audit.log
