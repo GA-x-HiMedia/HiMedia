@@ -25,6 +25,8 @@ from __future__ import annotations
 from . import himedia
 from .identity import allowed, is_client, phone_of
 
+# edited by reem — added the gates below. the API filters list endpoints
+# by phone, but not the by-id ones, so we check those ourselves.
 # --- May this person open this exact row? -----------------------------------
 #
 # The list endpoints take phone= and the sandbox filters them for us. The
@@ -150,6 +152,7 @@ def run_get_review_notes(person: dict, args: dict):
     ]
 
 
+# edited by reem — new tool. nothing else in the project read task comments.
 def run_get_task_notes(person: dict, args: dict) -> dict:
     """The conversation attached to one task.
 
@@ -241,6 +244,7 @@ def run_decide_version(person: dict, args: dict) -> dict:
     return {"version_id": version_id, "decision": args["decision"]}
 
 
+# edited by reem — decides which writes need the typed phrase.
 # --- Which writes are a point of no return? ---------------------------------
 #
 # Destructiveness is a property of the ACTION, not of the tool: moving a task
@@ -576,6 +580,7 @@ def tools_for(person: dict) -> list[dict]:
     return usable
 
 
+# edited by reem — checked before a write is previewed, not just before it runs.
 def may_act_on(person: dict, args: dict) -> bool:
     """Can this caller touch the row these arguments name?
 

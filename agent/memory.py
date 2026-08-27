@@ -21,6 +21,7 @@ MAX_HISTORY = 24  # keep roughly the last dozen exchanges
 # while the person still remembers what they were asked — a "yes" arriving
 # tomorrow morning is answering a question they have long forgotten, and on
 # WhatsApp that is an easy accident. Restored from `reem-local-backup`.
+# edited by reem — a held write expires instead of waiting forever.
 PENDING_SECONDS = 15 * 60
 
 

@@ -86,6 +86,8 @@ def allowed(person: dict, module: str, level: str = "read") -> bool:
     return granted == "read" and level == "read"
 
 
+# edited by reem — helpers below: is_client, phone_of, forget,
+# colleagues_who_can, describe, UNKNOWN_NUMBER_REPLY.
 def is_client(person: dict) -> bool:
     """Client staff live in a different world of data from the production
     company. Every audience decision in tools.py keys off this."""

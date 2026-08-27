@@ -468,3 +468,19 @@ never to do.
 (Ch. 14's trick), answers `who` with the caller's permissions and offered tool
 list, and prints a plain message instead of a stack trace when no model key is
 set. That keeps the identity and permission half usable today.
+
+## Step 11 — attribution markers in the code
+
+- Added `# edited by reem — <what>` above each section I changed, and
+  `Written by Reem.` in the docstring of the seven files that are entirely
+  mine. The Trello board requires per-person attribution, and git blame does
+  not help when someone is reading the file.
+- Deliberately one marker per changed SECTION, not per line — a marker on
+  every edit would be noise, and Ch. 33 asks for clean files.
+- Did NOT mark `agent/whatsapp.py`: the only change there is the device gate,
+  which is Sara area and already labelled TEMP.
+- Note for the record: all commits on this branch are already authored
+  Reem-Shehab, so git and GitHub credit them correctly without these markers.
+  They are for humans reading the file, not for git.
+- Corrected a stale docstring in `himedia.py` that still called the
+  client_visible question unconfirmed — it was proven live in Step 10.

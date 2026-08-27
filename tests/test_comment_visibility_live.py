@@ -20,6 +20,8 @@ Note what "on behalf of" can and cannot mean here. The comments endpoint takes
 no `phone` parameter: it authenticates with our API key and has no idea who is
 asking unless we tell it. That is precisely why the question matters, and the
 test below reads the answer off the response rather than assuming it.
+
+Written by Reem.
 """
 import pytest
 

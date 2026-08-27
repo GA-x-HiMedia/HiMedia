@@ -46,6 +46,7 @@ def log_tool_call(
         f.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
+# edited by reem — timing records, for the arabic vs english comparison.
 def log_stage(
     *,
     phone: str,
