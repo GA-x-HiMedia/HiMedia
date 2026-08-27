@@ -155,8 +155,9 @@ def run_get_task_notes(person: dict, args: dict) -> dict:
 
     Restored from `reem-local-backup` — the shared version had no task-comment
     tool at all. client_visible_only is set from the caller's audience and
-    never from args; see QUESTIONS.md for the live evidence that the API does
-    not apply it for us.
+    never from args, on the assumption that the API does not apply the audience
+    rule for us. That assumption is still unproven against the live sandbox —
+    see QUESTIONS.md — so it is deliberately the cautious one.
     """
     task_id = args["task_id"]
     if task_id not in _visible_task_ids(person):
