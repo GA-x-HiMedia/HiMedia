@@ -30,14 +30,20 @@ SALAM_VERSION = "ver_reels_v2"  # published to her
 BATELCO_VERSION = "ver_teaser_v1"  # the OTHER client's work
 
 # What each phone number is allowed to see, as the list endpoints would answer.
+# Note the assignee_name on the CLIENT's own row: that is what the real
+# sandbox returns. `?phone=` filters which rows come back, not which fields,
+# so the staff name rides along on a task the client is entitled to see.
 _VISIBLE_TASKS = {
     FATIMA_PHONE: [{"id": SALAM_TASK, "title": "Ramadan reels", "status": "client_review",
-                    "priority": "normal", "due_on": "2026-03-01", "project_name": "Ramadan"}],
+                    "priority": "normal", "due_on": "2026-03-01", "project_name": "Ramadan",
+                    "assignee_id": "usr_khalid", "assignee_name": "Khalid Al-Dossary"}],
     KHALID_PHONE: [
         {"id": SALAM_TASK, "title": "Ramadan reels", "status": "client_review",
-         "priority": "normal", "due_on": "2026-03-01", "project_name": "Ramadan"},
+         "priority": "normal", "due_on": "2026-03-01", "project_name": "Ramadan",
+         "assignee_id": "usr_khalid", "assignee_name": "Khalid Al-Dossary"},
         {"id": INTERNAL_TASK, "title": "Batelco 5G hero film grade", "status": "in_progress",
-         "priority": "urgent", "due_on": "2026-02-20", "project_name": "Batelco 5G"},
+         "priority": "urgent", "due_on": "2026-02-20", "project_name": "Batelco 5G",
+         "assignee_id": "usr_khalid", "assignee_name": "Khalid Al-Dossary"},
     ],
 }
 
@@ -349,3 +355,28 @@ def test_leak_caller_phone_can_be_overridden_by_tool_arguments(sandbox):
         assert tools.run_list_tasks(person, {"open_only": False, **forged}) == hers
 
     assert _leaked(hers) == []
+
+
+# --- leak 11 ----------------------------------------------------------------
+
+
+def test_leak_staff_assignee_name_on_the_clients_own_task(sandbox):
+    """`?phone=` filters which ROWS a client gets, not which FIELDS.
+
+    Confirmed against the live sandbox: GET /v1/tasks?phone=<Fatima> returns
+    her two tasks with `assignee_name: "Khalid Mansoor"` and
+    `"Noor Habib"` attached. The row is legitimately hers; the staff name on it
+    is not (handbook Ch. 30 — "who edits our videos?" must yield no staff
+    names). Row-level filtering by the API does not imply field-level safety,
+    so the tool picks its fields explicitly rather than passing the row on.
+    """
+    rows = tools.run_list_tasks(_client(), {"open_only": False})
+
+    assert rows, "the client should still get her own tasks"
+    for row in rows:
+        assert "assignee_name" not in row
+        assert "assignee_id" not in row
+        assert "khalid" not in str(row).lower()
+
+    # Staff asking the same question is unaffected — they may see who is on it.
+    assert tools.run_list_tasks(_staff(), {"open_only": False})

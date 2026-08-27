@@ -21,46 +21,47 @@ to office hours or the client/instructional check-in (Handbook Ch. 36
   internal comments to a client.
 - **Already tried:** Re-read Chapter 19 — the handbook says explicitly
   "the API will happily return internal comments if you ask for them...
-  applying the audience rule is your job." Confirm this is still true
-  against the live sandbox before assuming it.
-- **Status:** OPEN — but no longer load-bearing. See below.
+  applying the audience rule is your job." Confirmed against the live
+  sandbox rather than taken on trust.
+- **Status:** ANSWERED — **we must pass it ourselves, on every call.**
 
-  **What the code does now, either way.** `tools.run_get_task_notes` sets
+  **The evidence.** Run on the live sandbox against `tsk_0002`, a task
+  Fatima (client_approver @ Bank of Salam) can legitimately see, carrying
+  two comments: one client-visible, one `client_visible: false`.
+
+      GET /v1/tasks/tsk_0002/comments                          -> 2 comments, 1 internal
+      GET /v1/tasks/tsk_0002/comments?client_visible_only=true -> 1 comment,  0 internal
+
+  The unfiltered call returned the internal comment in full, author name
+  included. The endpoint takes no `phone` parameter at all: it
+  authenticates on our API key and has no idea a client is asking.
+
+  Confirmed the same way for the by-id reads generally — they ignore
+  `phone=` even when you pass it:
+
+      GET /v1/tasks/tsk_0001?phone=<Fatima>  -> "Edit the Ramadan hero film — v3"
+
+  That is an internal task (`client_visible: false`) returned in full to a
+  client's phone number, title and all. Chapter 16's "almost every list
+  endpoint accepts phone=" is exactly right — *list* endpoints. The by-id
+  ones do not filter, which is why `agent/tools.py` gates them itself.
+
+  **What the code does.** `tools.run_get_task_notes` sets
   `client_visible_only` from the caller's own audience
   (`identity.is_client`), never from a tool argument, and it is the only
-  path in the project that reads task comments. So a client cannot be
-  handed a `client_visible: false` comment whether the API filters or not.
-  Pinned by `tests/test_leak_regressions.py::test_leak_internal_task_comment_reaches_a_client`,
-  which asserts the flag is actually passed as `True` for a client and
-  `False` for staff.
+  path in the project that reads task comments. Verified live by
+  `tests/test_comment_visibility_live.py`, which asserts the internal
+  comment reaches staff and never reaches the client, and offline by
+  `tests/test_leak_regressions.py::test_leak_internal_task_comment_reaches_a_client`.
 
-  **Why it is still marked open.** The experiment the question asks for —
-  same task, one call as a client, one as staff, on a task carrying a
-  `client_visible: false` comment — has been written as
-  `tests/test_comment_visibility_live.py` but has never produced a result,
-  because the sandbox is unreachable from this checkout:
+  **Reproduce it:**
 
-      $ RUN_LIVE_TESTS=1 pytest tests/test_comment_visibility_live.py -v -s
-      E   agent.himedia.ApiRefused: ERROR: Something went wrong.
-      (GET /v1/projects -> 404)
+      RUN_LIVE_TESTS=1 pytest tests/test_comment_visibility_live.py -v -s
+      python -m tests.test_comment_visibility_live      # prints the raw evidence
 
-      $ curl https://ga-sandbox-production.up.railway.app/
-      {"status":"error","code":404,"message":"Application not found"}
-
-  That 404 is Railway's edge error on `/`, `/health` and `/docs` as well as
-  every `/v1/` path, so it is the host, not the route — and no
-  `HIMEDIA_API_KEY` is set here either. Recording this as unproven rather
-  than closing it on the handbook's word: the whole point of the entry was
-  to check the handbook against reality.
-
-  **To close it:** point `HIMEDIA_BASE_URL` at a live sandbox, set
-  `HIMEDIA_API_KEY`, then run
-
-      python -m tests.test_comment_visibility_live
-
-  and paste its output here. It prints both calls side by side and states
-  the answer outright. If a task with an internal comment does not exist in
-  the current seed data it says so rather than guessing.
+  Note: the demo seed data had no internal comment on any client-visible
+  task, so one was posted on `tsk_0002` to create the condition. It is
+  still there; `POST /v1/admin/reset-demo` clears it (tell the class first).
 
 - **Question:**
 - **Why it matters:**

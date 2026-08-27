@@ -12,7 +12,7 @@ import pytest
 
 from agent import brain, identity
 
-pytestmark = pytest.mark.live
+pytestmark = [pytest.mark.live, pytest.mark.needs_model]
 
 KHALID = "+97333000003"    # editor @ Hussain Media — 5 open tasks
 SARA = "+97333000002"      # supervisor @ Hussain Media
