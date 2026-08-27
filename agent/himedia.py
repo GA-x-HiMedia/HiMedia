@@ -4,9 +4,19 @@ ever needs typing anywhere else in this project, it belongs here instead.
 """
 
 # edited by reem:
-#   - named every endpoint, so no URL is typed outside this file
+#   - gave every endpoint a name here. Most of these calls already worked —
+#     Sara wrote them with the address typed inline in tools.py. THOSE WERE
+#     MOVED FROM THAT FILE TO HERE and given names; the behaviour is hers,
+#     the tidying is mine (TEAM.md: addresses live in exactly one file).
+#   - genuinely new here, because nothing in the project could do them before:
+#     get_task, get_version, list_task_comments, list_deliverables,
+#     list_users, check_permission
 #   - list_task_comments takes client_visible_only
 #   - ApiRefused keeps message_ar
+#
+# Scope of the "one file" rule, stated honestly: nothing in the agent's own
+# path types an address any more. Sara's Phase-1 scripts (demo.py, explore.py,
+# roster.py) still type theirs and were deliberately left alone.
 from __future__ import annotations
 
 import httpx
@@ -63,8 +73,11 @@ def patch(path: str, body: dict):
 # never type a path, so every endpoint the agent uses gets a name here and
 # tools.py calls the name.
 #
-# Restored from the earlier implementation on `reem-local-backup`, which had
-# these; the shared version had drifted to typing paths inside tools.py.
+# Where these came from: most of them were already working in Sara's tools.py
+# with the address typed inline at the call site. They were moved here and
+# given names — same requests, same behaviour, one place. The by-id reads and
+# the task-comment call are the exceptions: nothing in the project could make
+# those requests at all before, and they came from `reem-local-backup`.
 
 
 def get_permissions(phone: str) -> dict:
