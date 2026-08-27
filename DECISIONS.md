@@ -184,3 +184,19 @@ nothing. → `test_leak_caller_phone_can_be_overridden_by_tool_arguments`
   prompt is still a leak — the data left the process and only the model's
   discretion kept it from the client.
 - Kept the seven original attack messages unchanged; they are the graded set.
+
+## Step 5 — the client_visible question
+
+- Could NOT prove it live: the sandbox host is gone (404 "Application not
+  found" on every path, including `/`) and no HIMEDIA_API_KEY is set. Wrote
+  the experiment as `tests/test_comment_visibility_live.py` — same task, one
+  call as a client, one as staff — and recorded its actual failure output.
+- Left the QUESTIONS.md entry OPEN rather than closing it on the handbook s
+  word. The entry exists precisely to check the handbook against reality, so
+  closing it with reasoning instead of evidence would defeat it.
+- Fixed tools.py anyway, because the fix is correct under both answers:
+  `run_get_task_notes` sets `client_visible_only` from the caller audience and
+  is the only path that reads task comments. If the API does filter, the flag
+  is redundant; if it does not, it is the whole defence.
+- Added the assertion to the offline regression suite rather than only the
+  live one, so the guarantee is checked on every `pytest` run.
