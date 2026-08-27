@@ -46,6 +46,30 @@ def log_tool_call(
         f.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
+def log_stage(
+    *,
+    phone: str,
+    stage: str,
+    duration_ms: float,
+    detail: str = "",
+) -> None:
+    """One timing record for a stage of answering a single message.
+
+    Written to the same audit.log as the tool calls but with a "stage" key, so
+    the two are easy to tell apart when reading the file back. This is
+    measurement only — nothing branches on it.
+    """
+    event = {
+        "ts": datetime.now(timezone.utc).isoformat(),
+        "phone": phone,
+        "stage": stage,
+        "duration_ms": round(duration_ms, 1),
+        "detail": detail,
+    }
+    with AUDIT_LOG_PATH.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(event, ensure_ascii=False) + "\n")
+
+
 class Timer:
     """Tiny context manager for measuring how long a tool call took."""
 

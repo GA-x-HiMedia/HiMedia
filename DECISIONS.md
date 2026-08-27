@@ -200,3 +200,44 @@ nothing. → `test_leak_caller_phone_can_be_overridden_by_tool_arguments`
   is redundant; if it does not, it is the whole defence.
 - Added the assertion to the offline regression suite rather than only the
   live one, so the guarantee is checked on every `pytest` run.
+
+## Step 6 — measuring Arabic slowness
+
+- Instrumented only; no behaviour changed. `audit.log_stage()` writes a second
+  kind of record to the same `audit.log` (a `stage` key instead of a `tool`
+  key), so tool-call records keep their existing shape and nothing that reads
+  the log today breaks.
+- Stages timed: `identity.who_is` (with cache hit / live fetch noted), each
+  model round separately (`model_round_1`, `model_round_2`, …), each tool call
+  (`tool:<name>`), `rounds_used`, and `total`. Each is tagged `ar` or `en` from
+  the message itself, so the two languages can be compared.
+- Chose to label language by Arabic script in the incoming message rather than
+  by the caller's `locale`: people switch language mid-conversation, which is
+  exactly what the system prompt tells the model to handle, so `locale` would
+  mislabel half the rows.
+- Chose deliberately paired messages in `tests/measure_latency.py` — five
+  Arabic and five English that are translations of each other and within a few
+  characters of the same length — so a difference in the table is a difference
+  in handling the language, not in how much was asked.
+- **Could NOT run the 5 + 5 measurement.** Same blocker as Steps 4 and 5: the
+  sandbox host is gone and no keys are set, so `identity.who_is` fails before
+  any message is sent. The reporting half was verified separately against
+  simulated stage records, so the table renders correctly the moment real data
+  exists. No numbers are reported here, because there are none — a made-up
+  table is worse than an empty one.
+- **The 60s cache is NOT missing.** `identity.CACHE_SECONDS = 60` and
+  `who_is` checks `_cache` before fetching. It is per-process and in-memory, so
+  it helps the WhatsApp path (`whatsapp.think_and_send` calls `who_is` on every
+  inbound message) and is irrelevant to the CLI, which resolves the person once
+  at startup and then loops. The instrumentation now records hits and fetches
+  separately, so this stops being a guess.
+- **Flagging a cost I added in Step 3, without optimising it.** The visibility
+  gates call the list endpoints to find out what the caller may see, and those
+  calls are not cached. A gated read like `get_task_notes` is now three API
+  round-trips (`list_tasks` + `get_task` + `list_task_comments`) where it used
+  to be one, and each held write costs one more at preview time and again at
+  confirm time. That is the price of the tenant-isolation fix and it is worth
+  paying, but it belongs in the latency picture. The obvious fix — a short
+  per-message cache of the visible-id sets, on the same 60s logic as
+  `who_is` — is deliberately NOT done here, because this step says measure,
+  not optimise.
