@@ -109,10 +109,13 @@ def list_task_comments(task_id: str, client_visible_only: bool = False) -> list[
     """The conversation attached to a task.
 
     client_visible_only MUST be True whenever the person asking is a client.
-    The API trusts our API key and will hand over `client_visible: false`
-    internal comments otherwise (QUESTIONS.md — confirmed live, see the
-    evidence recorded there). Never call this straight from a tool; go
-    through tools.py, which sets the flag from the caller's audience.
+    This endpoint takes no `phone`: it authenticates on our API key and has no
+    idea who is asking, so per Chapter 19 it will hand over
+    `client_visible: false` internal comments unless we say otherwise. That is
+    still unconfirmed against the live sandbox (QUESTIONS.md), so we pass the
+    flag on the assumption that it does NOT filter for us — the safe direction
+    to be wrong in. Never call this straight from a tool; go through tools.py,
+    which sets the flag from the caller's audience.
     """
     return get(f"/v1/tasks/{task_id}/comments", client_visible_only=client_visible_only)["data"]
 
