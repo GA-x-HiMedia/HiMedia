@@ -133,6 +133,13 @@ def run_get_review_notes(person: dict, args: dict):
         version_id, unresolved_only=args.get("unresolved_only", False)
     )
     client = is_client(person)
+    if client:
+        # Belt and braces. Version comments are not documented to carry the
+        # client_visible flag the way task comments do, but if any row does
+        # carry it we honour it rather than discovering the hard way that they
+        # sometimes do. An absent flag is left alone; only an explicit false is
+        # dropped.
+        notes = [n for n in notes if n.get("client_visible") is not False]
     return [
         {
             "author": _speaker(n, client),
@@ -502,6 +509,25 @@ def tools_for(person: dict) -> list[dict]:
                 continue
         usable.append(tool)
     return usable
+
+
+def may_act_on(person: dict, args: dict) -> bool:
+    """Can this caller touch the row these arguments name?
+
+    Called before a write is PREVIEWED, not just before it runs. Without it the
+    agent will happily read back "Approve version ver_teaser_v1?" to someone at
+    another company — refusing only after they say yes. The preview itself is
+    an answer, so it has to be gated too.
+    """
+    task_id = args.get("task_id")
+    if task_id is not None and task_id not in _visible_task_ids(person):
+        return False
+
+    version_id = args.get("version_id")
+    if version_id is not None and version_id not in _visible_version_ids(person):
+        return False
+
+    return True
 
 
 def public_part(tool: dict) -> dict:
