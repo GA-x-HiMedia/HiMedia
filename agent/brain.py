@@ -126,15 +126,33 @@ def _emit(on_status: Callable[[str], None] | None, text: str) -> None:
         on_status(text)
 
 
+def _language_of(message: str) -> str:
+    """ar if the message contains Arabic script, else en. Used to label timing
+    records only — the model still detects language per message itself."""
+    return "ar" if any("\u0600" <= ch <= "\u06ff" for ch in message) else "en"
+
+
 def reply_to(
     person: dict,
     message: str,
     phone: str,
     on_status: Callable[[str], None] | None = None,
 ) -> str:
+    turn = audit.Timer()
+    turn.__enter__()
+    language = _language_of(message)
+
+    def _finish(reply: str, rounds: int) -> str:
+        turn.__exit__()
+        audit.log_stage(phone=phone, stage="rounds_used", duration_ms=0.0,
+                        detail=f"{rounds} of {MAX_ROUNDS} ({language})")
+        audit.log_stage(phone=phone, stage="total", duration_ms=turn.elapsed_ms,
+                        detail=language)
+        return reply
+
     pending = memory.peek_pending(phone)
     if pending is not None:
-        return _handle_pending_reply(person, phone, message, pending)
+        return _finish(_handle_pending_reply(person, phone, message, pending), 0)
 
     tools = tools_for(person)
     by_name = {t["function"]["name"]: t for t in tools}
@@ -143,26 +161,29 @@ def reply_to(
     messages += memory.history_for(phone)
     messages.append({"role": "user", "content": message})
 
-    for _ in range(MAX_ROUNDS):
+    for round_number in range(1, MAX_ROUNDS + 1):
         _emit(on_status, "Thinking…")
         try:
-            answer = _client().chat.completions.create(
-                model=MODEL,
-                messages=messages,
-                tools=[public_part(t) for t in tools],
-            ).choices[0].message
+            with audit.Timer() as model_round:
+                answer = _client().chat.completions.create(
+                    model=MODEL,
+                    messages=messages,
+                    tools=[public_part(t) for t in tools],
+                ).choices[0].message
+            audit.log_stage(phone=phone, stage=f"model_round_{round_number}",
+                            duration_ms=model_round.elapsed_ms, detail=language)
         except RateLimitError:
             # Free-tier quota exhausted — log it like any other failed
             # step, then answer plainly instead of crashing the CLI or
             # silently dropping a WhatsApp background task.
             _log(person, phone, "gemini.chat.completions", {}, "rate_limited", 0.0, False)
-            return _quota_message(person)
+            return _finish(_quota_message(person), round_number)
         messages.append(answer)
 
         if not answer.tool_calls:
             memory.remember(phone, "user", message)
             memory.remember(phone, "assistant", answer.content)
-            return answer.content or ""
+            return _finish(answer.content or "", round_number)
 
         for call in answer.tool_calls:
             tool = by_name.get(call.function.name)  # must be in THIS turn's filtered list
@@ -193,7 +214,7 @@ def reply_to(
                 memory.remember(phone, "user", message)
                 preview = describe(tool["function"]["name"], args)
                 _log(person, phone, tool["function"]["name"], args, "held for confirmation", 0.0, True)
-                return f"{preview}. \u062a\u0623\u0643\u064a\u062f\u061f (confirm?)"
+                return _finish(f"{preview}. \u062a\u0623\u0643\u064a\u062f\u061f (confirm?)", round_number)
             else:
                 args = json.loads(call.function.arguments or "{}")
                 with audit.Timer() as t:
@@ -204,6 +225,8 @@ def reply_to(
                         out = {"refused": e.code, "reason": e.message}
                         ok = False
                 _log(person, phone, tool["function"]["name"], args, out, t.elapsed_ms, ok)
+                audit.log_stage(phone=phone, stage=f"tool:{tool['function']['name']}",
+                                duration_ms=t.elapsed_ms, detail=language)
 
             messages.append({
                 "role": "tool",
@@ -211,7 +234,10 @@ def reply_to(
                 "content": json.dumps(out, ensure_ascii=False),
             })
 
-    return "\u0645\u0627 \u0642\u062f\u0631\u062a \u0623\u0643\u0645\u0644 \u0627\u0644\u0637\u0644\u0628. \u062c\u0631\u0651\u0628 \u062a\u0633\u0623\u0644 \u0628\u0637\u0631\u064a\u0642\u0629 \u062b\u0627\u0646\u064a\u0629."
+    return _finish(
+        "\u0645\u0627 \u0642\u062f\u0631\u062a \u0623\u0643\u0645\u0644 \u0627\u0644\u0637\u0644\u0628. \u062c\u0631\u0651\u0628 \u062a\u0633\u0623\u0644 \u0628\u0637\u0631\u064a\u0642\u0629 \u062b\u0627\u0646\u064a\u0629.",
+        MAX_ROUNDS,
+    )
 
 
 def _handle_pending_reply(person: dict, phone: str, message: str, pending: dict) -> str:

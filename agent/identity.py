@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 import time
 
-from . import himedia
+from . import audit, himedia
 
 _cache: dict[str, tuple[dict, float]] = {}  # phone -> (person, fetched_at)
 CACHE_SECONDS = 60
@@ -37,17 +37,30 @@ def who_is(raw_phone: str) -> dict | None:
     phone = tidy(raw_phone)
     hit = _cache.get(phone)
     if hit and time.time() - hit[1] < CACHE_SECONDS:
+        audit.log_stage(phone=phone, stage="identity.who_is", duration_ms=0.0,
+                        detail="cache hit")
         return hit[0]
 
-    try:
-        person = himedia.get("/v1/permissions/by-phone", phone=phone)
-    except himedia.ApiRefused as e:
-        if e.code == "USER_NOT_FOUND":
-            return None
-        raise
+    with audit.Timer() as t:
+        try:
+            person = himedia.get_permissions(phone)
+        except himedia.ApiRefused as e:
+            if e.code == "USER_NOT_FOUND":
+                audit.log_stage(phone=phone, stage="identity.who_is",
+                                duration_ms=t_elapsed(t), detail="unknown number")
+                return None
+            raise
 
+    audit.log_stage(phone=phone, stage="identity.who_is", duration_ms=t.elapsed_ms,
+                    detail="live fetch")
     _cache[phone] = (person, time.time())
     return person
+
+
+def t_elapsed(timer) -> float:
+    """The Timer only sets elapsed_ms on exit; inside an except block it may
+    not be set yet."""
+    return getattr(timer, "elapsed_ms", 0.0)
 
 
 def allowed(person: dict, module: str, level: str = "read") -> bool:
