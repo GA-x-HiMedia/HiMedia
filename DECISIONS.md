@@ -241,3 +241,25 @@ nothing. → `test_leak_caller_phone_can_be_overridden_by_tool_arguments`
   per-message cache of the visible-id sets, on the same 60s logic as
   `who_is` — is deliberately NOT done here, because this step says measure,
   not optimise.
+
+## Step 7 — exact-phrase confirmation for destructive writes
+
+- Kept the existing yes/y/ok/اي/ايوه/نعم/تمام/اوك list for harmless
+  confirmations, unchanged. Only `decide_version` requires the exact phrase.
+- Chose `decide_version` as the only member of `EXACT_PHRASE_TOOLS` for now:
+  it is the one that decides something on the client behalf and the one
+  with no undo. `update_task_status` and the two comment tools are annoying to
+  get wrong, not damaging, and putting them behind a phrase would train people
+  to paste it without reading.
+- One constant, `brain.CONFIRM_PHRASE`, used by both the check and the message
+  that asks for it — so the phrase a person is told to type is by construction
+  the phrase that works. A test asserts the literal appears exactly once.
+- Anything that is not the phrase CANCELS rather than re-prompting. A pending
+  destructive write that survives a wrong answer is a write waiting for a
+  stray "yes" — the person can simply ask again.
+- Matching is exact after `.strip()`, not substring: a sentence containing the
+  phrase does not count, or the model could produce one on the person behalf.
+  Whitespace is forgiven because it is a typing artefact, not a different
+  answer.
+- Diff kept to +53/-1 in brain.py; nothing reformatted, and `_system_prompt()`
+  (Zainab work) not touched.
