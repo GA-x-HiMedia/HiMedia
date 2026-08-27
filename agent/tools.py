@@ -21,11 +21,6 @@ Every write tool is caught by brain.py's confirm-before-write flow — none
 of them ever run on the first ask.
 """
 
-# edited by reem:
-#   - visibility gates on every by-id read and all four writes
-#   - strips staff names, assignee_name and published_to_client for clients
-#   - new tool: get_task_notes, with client_visible filtering
-#   - is_destructive() — which writes need the typed phrase
 from __future__ import annotations
 
 from . import himedia
@@ -159,11 +154,11 @@ def run_get_review_notes(person: dict, args: dict):
 def run_get_task_notes(person: dict, args: dict) -> dict:
     """The conversation attached to one task.
 
-    Restored from `reem-local-backup` — the shared version had no task-comment
-    tool at all. client_visible_only is set from the caller's audience and
-    never from args, on the assumption that the API does not apply the audience
-    rule for us. That assumption is still unproven against the live sandbox —
-    see QUESTIONS.md — so it is deliberately the cautious one.
+    client_visible_only is set from the caller's audience and never from args.
+    The API does NOT apply the audience rule for us: confirmed live against
+    tsk_0002, where the unfiltered call returned an internal comment in full,
+    author name included (QUESTIONS.md carries the evidence). This is the only
+    path in the project that reads task comments.
     """
     task_id = args["task_id"]
     if task_id not in _visible_task_ids(person):

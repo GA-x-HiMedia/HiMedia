@@ -10,8 +10,6 @@ of record). This is the agent-side record for our own debugging and for
 the conversation log the submission checklist asks for.
 """
 
-# edited by reem: log_stage() — timing records for the arabic vs english
-# comparison, written alongside the tool-call records.
 from __future__ import annotations
 
 import json

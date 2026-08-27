@@ -16,8 +16,6 @@ Status indicator: while waiting for a reply, this prints "Thinking…" /
 before the final reply is printed.
 """
 
-# edited by reem: type a number to switch person, `who` to see access,
-# and a plain message instead of a stack trace when no model key is set.
 from . import brain, identity, tools
 
 

@@ -10,10 +10,6 @@ number is refused outright. See `device_gate` at the foot of this file, and
 the README's "what is not finished" section for the two limits that remain.
 """
 
-# edited by reem:
-#   - is_client, phone_of, forget, colleagues_who_can, describe
-#   - allowed() honours the owner role, which arrives with an empty map
-#   - first-device check: unknown numbers refused, known numbers challenged
 from __future__ import annotations
 
 import logging
@@ -170,8 +166,8 @@ UNKNOWN_NUMBER_REPLY = (
 
 # --- first-device verification ----------------------------------------------
 #
-# Reem's. Scoped deliberately small: the path is right, the four cases are
-# tested, and nothing further was added (Ch. 34 — no late features).
+# Scoped deliberately small: the path is right, the four cases are tested,
+# and nothing further was added (Ch. 34 — no late features).
 #
 # A phone number is not proof of identity: sender IDs can be spoofed and SIMs
 # get swapped, and until now this project trusted a number the moment the API
