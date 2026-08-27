@@ -44,6 +44,23 @@ NEGATIVE = {
     "لا", "كنسل", "الغاء", "إلغاء",
 }
 
+# Destructive writes are not confirmed by a word. "ok" is what someone types
+# while half-reading a notification, and approving a client deliverable is not
+# something to do by reflex. The tools listed below require this exact phrase
+# and nothing else: anything else cancels, and says so.
+#
+# One constant, used both by the check and by the message that asks for it, so
+# the phrase a person is told to type is by construction the phrase that works.
+CONFIRM_PHRASE = "تأكيد الاعتماد"
+
+# Starting with decide_version — the one that decides something on the client's
+# behalf, and the one there is no undo for.
+EXACT_PHRASE_TOOLS = {"decide_version"}
+
+
+def needs_exact_phrase(tool_name: str) -> bool:
+    return tool_name in EXACT_PHRASE_TOOLS
+
 
 def _client() -> OpenAI:
     """Created lazily so importing this module doesn't require an API key
@@ -214,7 +231,15 @@ def reply_to(
                 memory.remember(phone, "user", message)
                 preview = describe(tool["function"]["name"], args)
                 _log(person, phone, tool["function"]["name"], args, "held for confirmation", 0.0, True)
-                return _finish(f"{preview}. \u062a\u0623\u0643\u064a\u062f\u061f (confirm?)", round_number)
+                if needs_exact_phrase(tool["function"]["name"]):
+                    ask = (
+                        f"{preview}.\n"
+                        f"\u0644\u0644\u062a\u0623\u0643\u064a\u062f \u0627\u0643\u062a\u0628 \u00ab{CONFIRM_PHRASE}\u00bb \u0628\u0627\u0644\u0636\u0628\u0637. "
+                        f"(to confirm, reply with exactly: {CONFIRM_PHRASE})"
+                    )
+                else:
+                    ask = f"{preview}. \u062a\u0623\u0643\u064a\u062f\u061f (confirm?)"
+                return _finish(ask, round_number)
             else:
                 args = json.loads(call.function.arguments or "{}")
                 with audit.Timer() as t:
@@ -240,8 +265,35 @@ def reply_to(
     )
 
 
+_PHRASE_CANCELLED_AR = (
+    "ألغيت الطلب. هذا إجراء نهائي، وما ينفّذ إلا إذا كتبت «{phrase}» "
+    "بالضبط. اطلبه مرة ثانية إذا تبيه."
+)
+_PHRASE_CANCELLED_EN = (
+    "Cancelled. That one is final, so it only runs if you reply with exactly "
+    "“{phrase}”. Ask again if you still want it."
+)
+
+
 def _handle_pending_reply(person: dict, phone: str, message: str, pending: dict) -> str:
     stripped = message.strip().lower()
+
+    if needs_exact_phrase(pending["tool"]["function"]["name"]):
+        # Not a yes/no question. Either the exact phrase arrived or it did not,
+        # and anything that is not the phrase cancels — including "yes", which
+        # is exactly the reflex this gate exists to interrupt.
+        if message.strip() != CONFIRM_PHRASE:
+            held = memory.pop_pending(phone)
+            _log(person, phone, held["tool"]["function"]["name"], held["args"],
+                 "cancelled: confirmation phrase not given", 0.0, False)
+            template = (_PHRASE_CANCELLED_AR
+                        if person["user"].get("locale") == "ar"
+                        else _PHRASE_CANCELLED_EN)
+            reply = template.format(phrase=CONFIRM_PHRASE)
+            memory.remember(phone, "user", message)
+            memory.remember(phone, "assistant", reply)
+            return reply
+        stripped = "yes"   # the phrase was given: join the normal confirm path
 
     if stripped in AFFIRMATIVE:
         held = memory.pop_pending(phone)
