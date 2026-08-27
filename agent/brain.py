@@ -29,7 +29,7 @@ from openai import OpenAI, RateLimitError
 from . import audit, memory
 from .config import GEMINI_API_KEY, GEMINI_BASE_URL
 from .himedia import ApiRefused
-from .tools import describe, public_part, tools_for
+from .tools import describe, find_tool, public_part, tools_for
 
 _ai_client: OpenAI | None = None
 MODEL = "gemini-3.6-flash"
@@ -206,6 +206,22 @@ def _handle_pending_reply(person: dict, phone: str, message: str, pending: dict)
     if stripped in AFFIRMATIVE:
         held = memory.pop_pending(phone)
         tool, args = held["tool"], held["args"]
+
+        # Permissions are re-read from the API every minute, so the answer can
+        # have changed between the preview and the yes. Re-filter at the moment
+        # of writing, not at the moment of asking — someone demoted while the
+        # action sat waiting must not still get the write.
+        if find_tool(tool["function"]["name"], tools_for(person)) is None:
+            reply = (
+                "\u0645\u0627 \u0639\u0646\u062f\u0643 \u0635\u0644\u0627\u062d\u064a\u0629 \u0644\u0647\u0630\u0627 \u0627\u0644\u0625\u062c\u0631\u0627\u0621 \u0627\u0644\u062d\u064a\u0646."
+                if person["user"].get("locale") == "ar"
+                else "You no longer have permission for that action."
+            )
+            _log(person, phone, tool["function"]["name"], args, reply, 0.0, False)
+            memory.remember(phone, "user", message)
+            memory.remember(phone, "assistant", reply)
+            return reply
+
         with audit.Timer() as t:
             try:
                 tool["run"](person, args)
