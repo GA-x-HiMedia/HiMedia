@@ -288,3 +288,10 @@ nothing. → `test_leak_caller_phone_can_be_overridden_by_tool_arguments`
   audit trail is a record of what happened, not a place to keep secrets.
 - Kept it in memory like the rest of the project state (README, "what is not
   finished"): a restart asks everyone to verify again.
+
+## Step 9 — documentation kept in step with the code
+
+- Updated README tables to match reality: the tenth tool, the new offline test
+  files, the exact-phrase gate, the stage timing, and the device-verification
+  stand-in. Leaving the spec describing nine tools and a missing OTP would make
+  the next person trust a document that is wrong.

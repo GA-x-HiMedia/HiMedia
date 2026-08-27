@@ -61,9 +61,14 @@ Five read-only tools, filtered per caller's live permissions:
 |---|---|
 | `who_am_i` | — |
 | `list_tasks` | `tasks:read` |
+| `get_task_notes` | `tasks:read` |
 | `list_projects` | `projects:read` |
 | `list_versions` | `reviews:read` |
 | `get_review_notes` | `reviews:read` |
+
+`get_task_notes` reads the comments on one task. It is the only tool that
+touches `client_visible` data, so it always passes `client_visible_only` from
+the caller's own audience — see `QUESTIONS.md`.
 
 ## Phase 3 — Actions and Safety
 
@@ -94,6 +99,12 @@ python -m agent.cli
 # then confirm with "yes" — or cancel with "no"
 ```
 
+**Destructive writes take an exact phrase, not a yes.** `decide_version`
+approves or rejects a deliverable on the client's behalf and cannot be undone,
+so it only runs if the reply is exactly `تأكيد الاعتماد`
+(`brain.CONFIRM_PHRASE`). Anything else — including "yes" and "تمام" — cancels
+and says why. Every other write keeps the ordinary yes/no confirmation.
+
 **Graceful refusals per role:** a caller whose scope doesn't include a
 tool never sees it offered at all (Layer 1). A caller who somehow gets
 past that — or whose `approval_rank` is too low for a given review
@@ -112,6 +123,12 @@ Sends seven attack messages as Fatima (client_approver @ Bank of Salam)
 and asserts a fixed list of forbidden internal terms never appears in any
 reply. **Update `FORBIDDEN_WORDS` in that file** against whatever the
 current `reset-demo` state actually contains before trusting it.
+
+**Timing per stage** (`audit.log_stage`) goes to the same log: each model
+round, each tool call, `identity.who_is` with cache hit or miss, rounds used
+out of `MAX_ROUNDS`, and the total per message, each tagged `ar` or `en`.
+`python -m tests.measure_latency` sends five matched Arabic and English
+messages and prints the comparison.
 
 **Every tool call is logged** (`agent/audit.py`) to `audit.log` — who
 asked, which tool, with what arguments, what came back, how long it
@@ -173,10 +190,21 @@ RUN_LIVE_TESTS=1 pytest -v -s    # + live tests against the real sandbox/model
 | File | What it covers | Needs network? |
 |---|---|---|
 | `test_identity.py` | phone normalization | no |
-| `test_tools_filtering.py` | catalogue filtering, all 9 tools, fabricated permission payloads | no |
+| `test_tools_filtering.py` | catalogue filtering, all 10 tools, fabricated permission payloads | no |
 | `test_confirmation_flow.py` | hold/confirm/cancel logic, stubbed tool (no real write) | no |
+| `test_leak_regressions.py` | one test per leak fixed, against a fake sandbox | no |
+| `test_exact_phrase_confirmation.py` | the exact-phrase gate on `decide_version` | no |
+| `test_device_verification.py` | first-device one-time code (TEMP, Sara's area) | no |
+| `test_memory.py`, `test_audit.py`, `test_himedia.py`, `test_whatsapp.py` | history, logging, API wrapper, webhook | no |
 | `test_correctness_live.py` | Chapter 30 correctness checklist, real people | **yes** |
 | `test_leak_live.py` | adversarial leak suite — 30% of the grade | **yes** |
+| `test_comment_visibility_live.py` | settles the `client_visible` question in `QUESTIONS.md` | **yes** |
+
+`test_leak_regressions.py` is the offline half of the leak work: it replaces
+the sandbox with a fake that deliberately returns more than the caller should
+see, so a missing filter fails the test. It runs on a plain `pytest`, with no
+network and no model key — a leak test that needs neither is a leak test that
+actually gets run.
 
 This build environment cannot reach the sandbox, so the two live files
 have been written correctly against the documented API and model but not
@@ -187,9 +215,12 @@ submission.
 
 Explicitly out of scope for the two-week capstone, not oversights:
 
-- **No OTP / device verification.** A phone number is trusted the moment
-  it resolves via the API. Production would email a one-time code on
-  first contact from a new device before trusting the number at all.
+- **Device verification is a stand-in.** An unknown device is now asked for a
+  six-digit one-time code on first contact (`identity.device_gate`), and
+  verified devices are remembered. The code is written to the server log
+  because there is no mail service here — production must send it out of band,
+  by email, never back down the same WhatsApp thread. Marked TEMP in the commit
+  history; it belongs to Sara's area.
 - **No persistent memory or durable storage.** `agent/memory.py` is a
   plain dict — restarting the server forgets every conversation and any
   pending confirmation.
