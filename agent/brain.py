@@ -29,7 +29,7 @@ from openai import OpenAI, RateLimitError
 from . import audit, memory
 from .config import GEMINI_API_KEY, GEMINI_BASE_URL
 from .himedia import ApiRefused
-from .tools import describe, find_tool, public_part, tools_for
+from .tools import NOT_YOURS, describe, find_tool, may_act_on, public_part, tools_for
 
 _ai_client: OpenAI | None = None
 MODEL = "gemini-3.6-flash"
@@ -175,6 +175,20 @@ def reply_to(
             elif tool["writes"]:
                 # Do not run it. Hold it, describe it, and end the turn.
                 args = json.loads(call.function.arguments or "{}")
+
+                if not may_act_on(person, args):
+                    # Never preview a write against a row this caller cannot
+                    # see — hand the refusal back to the model instead, so it
+                    # explains rather than echoing the id.
+                    out = NOT_YOURS
+                    _log(person, phone, tool["function"]["name"], args, out, 0.0, False)
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": call.id,
+                        "content": json.dumps(out, ensure_ascii=False),
+                    })
+                    continue
+
                 memory.hold(phone, tool, args)
                 memory.remember(phone, "user", message)
                 preview = describe(tool["function"]["name"], args)
