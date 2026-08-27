@@ -12,6 +12,8 @@ and prints mean ms per stage per language.
 The pairs below are translations of each other and within a few characters of
 the same length, so a difference in the table is a difference in handling the
 language, not a difference in how much was asked.
+
+Written by Reem.
 """
 from __future__ import annotations
 

@@ -56,6 +56,7 @@ NEGATIVE = {
 # because the same phrase now covers approving, cancelling and sending work to
 # a client — telling someone to type "confirm the approval" in order to cancel
 # a task would be nonsense.
+# edited by reem — exact phrase for writes that cannot be undone.
 CONFIRM_PHRASE = "تأكيد نهائي"
 
 
@@ -147,6 +148,7 @@ def _emit(on_status: Callable[[str], None] | None, text: str) -> None:
         on_status(text)
 
 
+# edited by reem — tags each timing record ar or en.
 def _language_of(message: str) -> str:
     """ar if the message contains Arabic script, else en. Used to label timing
     records only — the model still detects language per message itself."""

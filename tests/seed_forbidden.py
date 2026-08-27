@@ -23,6 +23,8 @@ sees. That subtraction is what makes "Manara" drop out on its own — it is in
 her own project list, so it is hers to hear.
 
 Nothing here is hardcoded from memory: every value comes from the live API.
+
+Written by Reem.
 """
 from __future__ import annotations
 

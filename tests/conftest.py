@@ -10,6 +10,8 @@ def pytest_configure(config):
         "markers", "needs_model: additionally needs a real model API key")
 
 
+# edited by reem — split the gates so a missing model key does not hide
+# the sandbox tests that would have run fine without one.
 def _model_key_present() -> bool:
     """Any provider the project is wired for. brain.py currently reads
     GEMINI_API_KEY, so that is the one that actually unblocks a reply."""

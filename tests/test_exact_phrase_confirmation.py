@@ -12,6 +12,8 @@ work, moving it to `cancelled` or `client_review` is not.
 
 These exercise `brain._handle_pending_reply` directly with a stubbed tool, so
 nothing here touches the network or needs a model key.
+
+Written by Reem.
 """
 import pytest
 
