@@ -8,6 +8,8 @@ Two things live here:
   - a single pending write action per phone number, awaiting a yes/no
     (Phase 3 — "confirm before every write")
 """
+
+# edited by reem: a held write expires instead of waiting forever.
 from __future__ import annotations
 
 import time
@@ -21,7 +23,6 @@ MAX_HISTORY = 24  # keep roughly the last dozen exchanges
 # while the person still remembers what they were asked — a "yes" arriving
 # tomorrow morning is answering a question they have long forgotten, and on
 # WhatsApp that is an easy accident. Restored from `reem-local-backup`.
-# edited by reem — a held write expires instead of waiting forever.
 PENDING_SECONDS = 15 * 60
 
 

@@ -2,6 +2,11 @@
 The only file that knows the HiMedia sandbox exists (Chapter 22). If a URL
 ever needs typing anywhere else in this project, it belongs here instead.
 """
+
+# edited by reem:
+#   - named every endpoint, so no URL is typed outside this file
+#   - list_task_comments takes client_visible_only
+#   - ApiRefused keeps message_ar
 from __future__ import annotations
 
 import httpx
@@ -50,7 +55,6 @@ def patch(path: str, body: dict):
     return call("PATCH", path, json=body)
 
 
-# edited by reem — named every endpoint so no URL is typed outside this file.
 # --- Named endpoints --------------------------------------------------------
 #
 # TEAM.md: "API URLs live in exactly one file: agent/himedia.py. If a URL
