@@ -241,6 +241,57 @@ def run_decide_version(person: dict, args: dict) -> dict:
     return {"version_id": version_id, "decision": args["decision"]}
 
 
+# --- Which writes are a point of no return? ---------------------------------
+#
+# Destructiveness is a property of the ACTION, not of the tool: moving a task
+# to in_progress and moving it to client_review are the same tool and are not
+# remotely the same act. So this is decided from the tool AND its arguments,
+# and the catalogue entries below carry either a flag or a predicate.
+#
+# The rule, applied consistently: a write needs the typed phrase when it is
+# irreversible, or when it crosses the line to the client and cannot be
+# un-sent. Everything else keeps the ordinary yes/no. Gating more than that is
+# not extra safety — people who are asked to retype a phrase ten times a day
+# stop reading it, and then it protects nothing.
+#
+# Note this sandbox has no delete endpoint of any kind: the entire write
+# surface is PATCH /v1/tasks/{id} and three POSTs. "Cancelled" is the closest
+# thing to destroying work that exists here.
+
+POINT_OF_NO_RETURN_STATUSES = {
+    "client_review",   # the client can now see it; you cannot un-send it
+    "cancelled",       # the nearest thing to deleting work this API offers
+}
+
+
+def _status_is_final(args: dict) -> bool:
+    return args.get("status") in POINT_OF_NO_RETURN_STATUSES
+
+
+def _comment_reaches_the_client(args: dict) -> bool:
+    # An internal note is cheap to get wrong. One the client can read is not.
+    return bool(args.get("client_visible"))
+
+
+def is_destructive(tool_name: str, args: dict) -> bool:
+    """Does this exact call need the typed confirmation phrase?
+
+    Looked up by NAME in the real catalogue rather than read off a tool dict
+    handed to us, so the answer cannot be spoofed by a forged tool. Anything
+    not found, or a write tool that forgot to declare itself, is treated as
+    destructive — a missed classification should fail towards asking, never
+    towards acting.
+    """
+    tool = next((t for t in ALL_TOOLS if t["function"]["name"] == tool_name), None)
+    if tool is None:
+        return True
+    if not tool["writes"]:
+        return False
+
+    verdict = tool.get("destructive", True)
+    return bool(verdict(args)) if callable(verdict) else bool(verdict)
+
+
 # --- Catalogue ----------------------------------------------------------
 
 ALL_TOOLS: list[dict] = [
@@ -318,6 +369,9 @@ ALL_TOOLS: list[dict] = [
         "needs": ("tasks", "write"),
         "audience": "internal",
         "writes": True,
+        # Harmless moving a task to todo or in_progress; a point of no return
+        # moving it to client_review (the client sees it) or cancelled.
+        "destructive": _status_is_final,
         "run": run_update_task_status,
     },
     {
@@ -343,6 +397,9 @@ ALL_TOOLS: list[dict] = [
         "needs": ("tasks", "write"),
         "audience": "internal",
         "writes": True,
+        # Internal discussion is ordinary. Publishing a line to the client is
+        # not, and cannot be taken back.
+        "destructive": _comment_reaches_the_client,
         "run": run_comment_on_task,
     },
     {
@@ -465,6 +522,11 @@ ALL_TOOLS: list[dict] = [
         "needs": ("reviews", "write"),
         "audience": "both",
         "writes": True,
+        # Deliberately NOT gated. It is the highest-frequency write in the
+        # project and it only ADDS information — a wrong note is answered with
+        # another note. Putting a phrase in front of every comment is how a
+        # confirmation gate becomes muscle memory.
+        "destructive": False,
         "run": run_comment_on_version,
     },
     {
@@ -491,6 +553,8 @@ ALL_TOOLS: list[dict] = [
         "needs": ("reviews", "write"),
         "audience": "both",
         "writes": True,
+        # Always. It decides on the client's behalf and there is no undo.
+        "destructive": True,
         "run": run_decide_version,
     },
 ]

@@ -295,3 +295,41 @@ nothing. → `test_leak_caller_phone_can_be_overridden_by_tool_arguments`
   files, the exact-phrase gate, the stage timing, and the device-verification
   stand-in. Leaving the spec describing nine tools and a missing OTP would make
   the next person trust a document that is wrong.
+
+## Step 7 (revised) — widening the double-confirmation
+
+Reem asked for the exact-phrase gate to cover important actions generally —
+"deleting a video or submitting one" — not just approvals.
+
+- **There is no delete in this API.** The entire write surface is
+  `PATCH /v1/tasks/{id}` plus three POSTs (task comment, version comment,
+  version decision). Nothing can be deleted, so no `delete_*` tool was added —
+  it would call an endpoint that does not exist. `cancelled` is the closest
+  thing to destroying work that this sandbox has, and it is now gated.
+- **Destructiveness is a property of (tool, arguments), not of the tool.**
+  `update_task_status` is ordinary work moving a task to `in_progress` and a
+  point of no return moving it to `cancelled`. A flat per-tool list cannot say
+  that, so `tools.is_destructive(name, args)` decides, and catalogue entries
+  carry either a flag or a predicate.
+- The rule chosen, applied consistently: **irreversible, or it crosses the line
+  to the client and cannot be un-sent.** That covers approve/reject, cancel,
+  send-to-client-review, and client-visible task comments.
+- `comment_on_version` deliberately NOT gated, even though the client sees it.
+  It is the highest-frequency write and it only ADDS information — a wrong note
+  is answered with another note. Gating every comment is how a confirmation
+  phrase becomes muscle memory, which is the failure mode the gate exists to
+  avoid. One line to change if we disagree later.
+- `done` deliberately NOT gated: internal and reversible, and it is the
+  README demo flow ("move task tsk_0001 to done" -> "yes").
+- **Not scoped by role.** Permissions already decide who MAY act; the phrase
+  asks whether they MEANT it, which applies to everyone who can do the action.
+  Gating only managers would be backwards, and `approval_rank` is enforced
+  server-side by HiMedia (PERMISSIONS.md) so we must not reimplement it here.
+- **Renamed the phrase to "تأكيد نهائي"** (final confirmation) from
+  "تأكيد الاعتماد" (confirm the approval). Now that the same phrase covers
+  cancelling and submitting, telling someone to type "confirm the approval" in
+  order to cancel a task would be nonsense. Still exactly one constant.
+- **Fails towards asking.** An unknown tool name, or a write tool that forgot
+  to declare itself, is treated as destructive. A test asserts every write tool
+  in the catalogue has explicitly decided, so a new tool cannot skip the
+  question by accident.

@@ -29,7 +29,8 @@ from openai import OpenAI, RateLimitError
 from . import audit, memory
 from .config import GEMINI_API_KEY, GEMINI_BASE_URL
 from .himedia import ApiRefused
-from .tools import NOT_YOURS, describe, find_tool, may_act_on, public_part, tools_for
+from .tools import (NOT_YOURS, describe, find_tool, is_destructive, may_act_on,
+                    public_part, tools_for)
 
 _ai_client: OpenAI | None = None
 MODEL = "gemini-3.6-flash"
@@ -46,20 +47,23 @@ NEGATIVE = {
 
 # Destructive writes are not confirmed by a word. "ok" is what someone types
 # while half-reading a notification, and approving a client deliverable is not
-# something to do by reflex. The tools listed below require this exact phrase
-# and nothing else: anything else cancels, and says so.
+# something to do by reflex. Those writes require this exact phrase and nothing
+# else: anything else cancels, and says so.
 #
 # One constant, used both by the check and by the message that asks for it, so
 # the phrase a person is told to type is by construction the phrase that works.
-CONFIRM_PHRASE = "تأكيد الاعتماد"
+# Deliberately action-neutral ("final confirmation") rather than naming one act,
+# because the same phrase now covers approving, cancelling and sending work to
+# a client — telling someone to type "confirm the approval" in order to cancel
+# a task would be nonsense.
+CONFIRM_PHRASE = "تأكيد نهائي"
 
-# Starting with decide_version — the one that decides something on the client's
-# behalf, and the one there is no undo for.
-EXACT_PHRASE_TOOLS = {"decide_version"}
 
-
-def needs_exact_phrase(tool_name: str) -> bool:
-    return tool_name in EXACT_PHRASE_TOOLS
+def needs_exact_phrase(tool_name: str, args: dict) -> bool:
+    """Whether THIS call needs the phrase. Which writes count is decided in
+    tools.py, next to the catalogue, so a new tool cannot be added without the
+    question being answered."""
+    return is_destructive(tool_name, args)
 
 
 def _client() -> OpenAI:
@@ -231,7 +235,7 @@ def reply_to(
                 memory.remember(phone, "user", message)
                 preview = describe(tool["function"]["name"], args)
                 _log(person, phone, tool["function"]["name"], args, "held for confirmation", 0.0, True)
-                if needs_exact_phrase(tool["function"]["name"]):
+                if needs_exact_phrase(tool["function"]["name"], args):
                     ask = (
                         f"{preview}.\n"
                         f"\u0644\u0644\u062a\u0623\u0643\u064a\u062f \u0627\u0643\u062a\u0628 \u00ab{CONFIRM_PHRASE}\u00bb \u0628\u0627\u0644\u0636\u0628\u0637. "
@@ -278,7 +282,7 @@ _PHRASE_CANCELLED_EN = (
 def _handle_pending_reply(person: dict, phone: str, message: str, pending: dict) -> str:
     stripped = message.strip().lower()
 
-    if needs_exact_phrase(pending["tool"]["function"]["name"]):
+    if needs_exact_phrase(pending["tool"]["function"]["name"], pending["args"]):
         # Not a yes/no question. Either the exact phrase arrived or it did not,
         # and anything that is not the phrase cancels — including "yes", which
         # is exactly the reflex this gate exists to interrupt.

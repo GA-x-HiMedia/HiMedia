@@ -99,11 +99,35 @@ python -m agent.cli
 # then confirm with "yes" — or cancel with "no"
 ```
 
-**Destructive writes take an exact phrase, not a yes.** `decide_version`
-approves or rejects a deliverable on the client's behalf and cannot be undone,
-so it only runs if the reply is exactly `تأكيد الاعتماد`
-(`brain.CONFIRM_PHRASE`). Anything else — including "yes" and "تمام" — cancels
-and says why. Every other write keeps the ordinary yes/no confirmation.
+**Writes you can't take back need an exact phrase, not a yes.** The rule: a
+write needs the typed phrase when it is *irreversible*, or when it *crosses the
+line to the client* and can't be un-sent. Anything else — including "yes" and
+"تمام" — cancels it and says why.
+
+Which writes those are is decided from the tool **and its arguments**
+(`tools.is_destructive`), because the same tool can be either: moving a task to
+`in_progress` is ordinary work, moving it to `cancelled` is the closest thing to
+deleting something this API offers.
+
+| Action | Needs `تأكيد نهائي`? | Why |
+|---|---|---|
+| `decide_version` (approve / request changes) | **yes** | decides on the client's behalf, no undo |
+| `update_task_status` → `cancelled` | **yes** | nearest thing to destroying work here |
+| `update_task_status` → `client_review` | **yes** | the client can see it; can't un-send |
+| `comment_on_task` with `client_visible: true` | **yes** | publishes a line to the client |
+| `update_task_status` → `todo`/`in_progress`/`in_review`/`done` | no | internal, and reversible |
+| `comment_on_task` (internal) | no | cheap to get wrong, cheap to correct |
+| `comment_on_version` | no | highest-frequency write; only *adds* information |
+
+The phrase is one constant, `brain.CONFIRM_PHRASE`, used both by the check and
+by the message that asks for it. Write tools must declare which side of the
+line they fall on; anything unclassified is treated as destructive, and a test
+enforces that every write tool has decided.
+
+**Deliberately not gated by role.** Permissions already decide *who may* act
+(`identity.allowed`, plus `approval_rank` enforced server-side by HiMedia). The
+phrase answers a different question — *did you mean it?* — which applies to
+everyone who can do the action, managers included.
 
 **Graceful refusals per role:** a caller whose scope doesn't include a
 tool never sees it offered at all (Layer 1). A caller who somehow gets
