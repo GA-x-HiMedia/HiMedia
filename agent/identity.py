@@ -10,10 +10,14 @@ finished" section) — but the sandbox lookup here is what stands in for it.
 """
 from __future__ import annotations
 
+import logging
 import re
+import secrets
 import time
 
 from . import audit, himedia
+
+logger = logging.getLogger(__name__)
 
 _cache: dict[str, tuple[dict, float]] = {}  # phone -> (person, fetched_at)
 CACHE_SECONDS = 60
@@ -156,3 +160,118 @@ UNKNOWN_NUMBER_REPLY = (
     "I could not find your number in the HiMedia system. "
     "Please ask your account administrator to add you."
 )
+
+
+# --- TEMP (Sara's task): first-device verification --------------------------
+#
+# This is Sara's area, implemented at the smallest size that actually works so
+# the gate is not simply missing. Replace it with hers when it lands.
+#
+# A phone number is not proof of identity: sender IDs can be spoofed and SIMs
+# get swapped, and until now this project trusted a number the moment the API
+# recognised it. The first time an unknown device contacts us we now issue a
+# one-time code and answer nothing else until it comes back.
+#
+# The code is delivered OUT OF BAND — to the server log here, which stands in
+# for the email a production version would send. Sending it over the same
+# WhatsApp thread would prove nothing at all: whoever holds the number would
+# simply read it. That is the one part of this worth keeping whatever else
+# changes.
+#
+# In memory, like everything else in this project (README, "what's not
+# finished"): a restart asks everyone to verify again.
+
+_verified_devices: set[str] = set()
+_pending_codes: dict[str, tuple[str, float]] = {}
+
+CODE_SECONDS = 10 * 60
+
+
+def is_trusted_device(raw_phone: str) -> bool:
+    return tidy(raw_phone) in _verified_devices
+
+
+def begin_verification(raw_phone: str) -> str:
+    """Issue a fresh code for this number and return it for out-of-band
+    delivery. Any previous unused code stops working."""
+    phone = tidy(raw_phone)
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    _pending_codes[phone] = (code, time.time())
+    # The code itself never goes to audit.log — that file is a record of what
+    # happened, not a place to keep secrets.
+    audit.log_stage(phone=phone, stage="identity.verification",
+                    duration_ms=0.0, detail="code issued")
+    logger.warning("Verification code for %s: %s (deliver out of band)", phone, code)
+    return code
+
+
+def submit_code(raw_phone: str, submitted: str) -> bool:
+    """True if this is the right code, in time. A correct code trusts the
+    device from now on; a wrong one burns nothing, but an expired one is gone."""
+    phone = tidy(raw_phone)
+    held = _pending_codes.get(phone)
+    if held is None:
+        return False
+
+    code, issued_at = held
+    if time.time() - issued_at > CODE_SECONDS:
+        del _pending_codes[phone]
+        return False
+
+    if not secrets.compare_digest(submitted.strip(), code):
+        return False
+
+    del _pending_codes[phone]
+    _verified_devices.add(phone)
+    audit.log_stage(phone=phone, stage="identity.verification",
+                    duration_ms=0.0, detail="device verified")
+    return True
+
+
+def forget_device(raw_phone: str | None = None) -> None:
+    """Drop a device's verified status. Used by tests, and when a number is
+    reported lost."""
+    if raw_phone is None:
+        _verified_devices.clear()
+        _pending_codes.clear()
+        return
+    phone = tidy(raw_phone)
+    _verified_devices.discard(phone)
+    _pending_codes.pop(phone, None)
+
+
+ASK_FOR_CODE = (
+    "أول مرة أشوف هذا الجهاز. أرسلت لك رمز تحقق من ستة أرقام — اكتبه هني عشان أكمل.\n"
+    "First time I've seen this device. I've sent you a six-digit verification "
+    "code — reply with it to continue."
+)
+
+WRONG_CODE = (
+    "الرمز مو صحيح أو انتهت صلاحيته. أرسلت لك رمز جديد.\n"
+    "That code was wrong or expired. I've sent a new one."
+)
+
+DEVICE_VERIFIED = (
+    "تم التحقق من جهازك. تفضل، شنو تحتاج؟\n"
+    "Device verified. What do you need?"
+)
+
+
+def device_gate(raw_phone: str, message: str) -> str | None:
+    """The whole gate, in one call, so the callers stay thin.
+
+    Returns None when the device is trusted and the message should be handled
+    normally. Otherwise returns the reply to send instead.
+    """
+    if is_trusted_device(raw_phone):
+        return None
+
+    phone = tidy(raw_phone)
+    if phone in _pending_codes:
+        if submit_code(phone, message):
+            return DEVICE_VERIFIED
+        begin_verification(phone)
+        return WRONG_CODE
+
+    begin_verification(phone)
+    return ASK_FOR_CODE

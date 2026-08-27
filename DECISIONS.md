@@ -263,3 +263,28 @@ nothing. → `test_leak_caller_phone_can_be_overridden_by_tool_arguments`
   answer.
 - Diff kept to +53/-1 in brain.py; nothing reformatted, and `_system_prompt()`
   (Zainab work) not touched.
+
+## Step 8 — teammates work, verified not redone
+
+- **Zainab — Bahraini dialect guidance in `_system_prompt()`: DONE.** Present
+  in `agent/brain.py` (commit c9e3807, "Add Bahraini Arabic dialect guidance"):
+  natural Bahraini Arabic, professional tone, no forced slang, technical terms
+  kept accurate. It still respects the audience rules — the client voice bars
+  staff names, costs, invoices, drafts and other clients work, and the prompt
+  says outright that "language and tone must never override audience
+  restrictions or permissions". Not touched, as instructed.
+- **Sara — OTP / first-device verification in `identity.py`: MISSING.** Not in
+  `main`, and not on `origin/sara` either — the only trace is a docstring and a
+  README line saying a production version *would* do it. Implemented the
+  smallest working version in its own commit prefixed "TEMP (Sara task):".
+- Chose to deliver the code OUT OF BAND (server log, standing in for the email
+  a real version sends) rather than over the same WhatsApp thread. Sending it
+  back down the thread that asked for it proves nothing — whoever holds the
+  number just reads it. That is the part worth keeping whatever else changes.
+- Chose to add a `device_gate()` helper that returns None when the device is
+  trusted, so wiring it into `whatsapp.py` is three lines. Sara replacing this
+  only has to touch `identity.py`.
+- The code never reaches `audit.log` — only the fact that one was issued. The
+  audit trail is a record of what happened, not a place to keep secrets.
+- Kept it in memory like the rest of the project state (README, "what is not
+  finished"): a restart asks everyone to verify again.
