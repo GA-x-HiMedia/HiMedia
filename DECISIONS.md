@@ -439,10 +439,10 @@ names that matter most, from the forbidden list. Both fixed;
 ### The device check — stopped, as instructed
 
 > **Correction, added later.** This section was written while the first-device
-> check was still logged as Sara's area. It is not: Sara handed the task to
-> Reem, so the work below is Reem's own and the implementation in
-> `identity.py` is the real one, not a placeholder standing in until Sara's
-> lands. The "TEMP (Sara's task)" comment block has been removed from the code
+> check was still logged as Sara's area. It is not — it is Reem's task and
+> Reem's work, and the implementation in `identity.py` is the real one, not a
+> placeholder standing in until someone else's lands. The "TEMP (Sara's task)"
+> comment block has been removed from the code
 > and the module docstring corrected — it still claimed the shipped path did
 > not verify the device, which stopped being true two commits earlier. The
 > reasoning recorded below stands unchanged; only the name on it was wrong.

@@ -170,9 +170,7 @@ UNKNOWN_NUMBER_REPLY = (
 
 # --- first-device verification ----------------------------------------------
 #
-# Reem's, by handover — Sara passed this task over rather than building it
-# herself, so this is the real implementation and not a placeholder waiting to
-# be replaced. Scoped deliberately small: the path is right, the four cases are
+# Reem's. Scoped deliberately small: the path is right, the four cases are
 # tested, and nothing further was added (Ch. 34 — no late features).
 #
 # A phone number is not proof of identity: sender IDs can be spoofed and SIMs
