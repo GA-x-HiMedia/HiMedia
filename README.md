@@ -259,27 +259,43 @@ submission.
 
 Explicitly out of scope for the two-week capstone, not oversights:
 
-- **A phone number is not proof of identity, and we do not verify it.**
-  This is the honest gap, and it is deliberate rather than forgotten. The
-  agent trusts a number the moment `GET /v1/permissions/by-phone` recognises
-  it. That is fine in a sandbox and wrong in production: sender IDs can be
-  spoofed, SIMs get swapped, and a handset gets lent to a colleague — and
-  since identity is the *only* thing our permission filtering keys off, anyone
-  holding the phone inherits that person's entire access.
+- **A phone number is only as trustworthy as the handset.** Identity is the
+  one thing every permission decision keys off: `who_is()` turns a number into
+  a person, and everything the agent will say follows from that. But a sender
+  ID can be faked, a SIM can be swapped, and a phone gets handed to a colleague
+  — so anyone holding Khalid's number inherits Khalid's five tasks.
 
-  What we would ship instead: on first contact from a device we have not seen
-  before, email a six-digit code to the address already on the user's HiMedia
-  record, answer nothing else until it comes back, and remember the device
-  after that. The code must travel **out of band** — sending it down the same
-  WhatsApp thread that asked for it proves nothing, because whoever holds the
-  number simply reads it. Losing a device would then mean revoking it centrally
-  rather than changing a phone number.
+  **What we built.** A first-device check in `agent/identity.py::device_gate`.
+  The order of its two checks is the whole point:
 
-  There is a minimal stand-in for this in `identity.device_gate` (added under a
-  `TEMP (Sara's task)` commit while checking whether the gate existed at all).
-  It is not the finished feature, it is not what this section is claiming
-  credit for, and the honest summary is the paragraph above: **the shipped path
-  does not verify the device.**
+  | Who is asking | What happens |
+  |---|---|
+  | Number we don't recognise | The flat refusal, and nothing else. No code, no hint that we looked anything up. |
+  | Known number, device we've never seen | A six-digit one-time code, then the device is remembered. |
+  | Known number, remembered device | Straight through, no friction. |
+
+  A stranger is never sent a code. Telling someone we have issued them one
+  confirms both that the system exists and that we are processing them — worse
+  security than saying no, and it would fail the "unknown number → polite
+  refusal, nothing leaked" case outright. That ordering is pinned by
+  `tests/test_device_verification.py`, including end to end through the
+  WhatsApp entry point.
+
+  **What is not finished, honestly.** Two things.
+
+  The code is written to the server log, because there is no mail service
+  wired up here. A production version sends it to the address already on the
+  person's HiMedia record — **out of band, never back down the same WhatsApp
+  thread**, since whoever holds the number would simply read it there. That
+  single detail is what makes the check worth anything.
+
+  And the record of verified devices lives in a module-level set in
+  `identity.py`, in process. **Restarting the server forgets every verified
+  device and everyone is challenged again.** That is the same accepted
+  limitation as the conversation memory, and acceptable for a two-week
+  capstone — but in production it belongs in durable storage, with a way to
+  revoke a device centrally when a handset is lost.
+
 - **No persistent memory or durable storage.** `agent/memory.py` is a
   plain dict — restarting the server forgets every conversation and any
   pending confirmation.

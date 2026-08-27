@@ -15,6 +15,9 @@ Status indicator: while waiting for a reply, this prints "Thinking…" /
 (via \\r), instead of scrolling the terminal. The line is cleared right
 before the final reply is printed.
 """
+
+# edited by reem: type a number to switch person, `who` to see access,
+# and a plain message instead of a stack trace when no model key is set.
 from . import brain, identity, tools
 
 
@@ -32,7 +35,6 @@ def _make_status_printer():
     return _status
 
 
-# edited by reem — type a number to switch person, `who` to see access.
 def _looks_like_a_phone(text: str) -> bool:
     """A message made only of digits and phone punctuation is a request to
     switch person, not a question. Real questions always contain letters."""

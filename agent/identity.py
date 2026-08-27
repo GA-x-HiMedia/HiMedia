@@ -8,6 +8,11 @@ code the first time it sees a new device before trusting the number. That
 is explicitly not required for this capstone (see README's "what is not
 finished" section) — but the sandbox lookup here is what stands in for it.
 """
+
+# edited by reem:
+#   - is_client, phone_of, forget, colleagues_who_can, describe
+#   - allowed() honours the owner role, which arrives with an empty map
+#   - first-device check: unknown numbers refused, known numbers challenged
 from __future__ import annotations
 
 import logging
@@ -86,8 +91,6 @@ def allowed(person: dict, module: str, level: str = "read") -> bool:
     return granted == "read" and level == "read"
 
 
-# edited by reem — helpers below: is_client, phone_of, forget,
-# colleagues_who_can, describe, UNKNOWN_NUMBER_REPLY.
 def is_client(person: dict) -> bool:
     """Client staff live in a different world of data from the production
     company. Every audience decision in tools.py keys off this."""
@@ -259,12 +262,34 @@ DEVICE_VERIFIED = (
 )
 
 
-def device_gate(raw_phone: str, message: str) -> str | None:
+def device_gate(person: dict | None, raw_phone: str, message: str) -> str | None:
     """The whole gate, in one call, so the callers stay thin.
 
-    Returns None when the device is trusted and the message should be handled
-    normally. Otherwise returns the reply to send instead.
+    Returns None when the message should be handled normally. Otherwise it
+    returns the reply to send instead.
+
+    The order of the two checks below is the whole point, and it is why
+    `person` is a parameter rather than something this function looks up:
+
+      unknown number  -> the flat refusal, and nothing else (Ch. 24). We do
+                         NOT send a code. Telling a stranger we have emailed
+                         them a six-digit code confirms the system exists and
+                         that we are processing them, which is exactly what
+                         Ch. 30's "unknown number -> polite refusal, nothing
+                         leaked" is testing for. An OTP here is worse security,
+                         not better.
+
+      known number,    -> the OTP challenge. This is the case Ch. 13 actually
+      new device          describes: a SIM gets swapped or a handset is handed
+                          to a colleague, and identity is the only thing our
+                          permission filtering keys off.
+
+    Keeping the unknown-number check inside the function means a future caller
+    cannot reintroduce the leak by forgetting to guard the call.
     """
+    if person is None:
+        return UNKNOWN_NUMBER_REPLY
+
     if is_trusted_device(raw_phone):
         return None
 

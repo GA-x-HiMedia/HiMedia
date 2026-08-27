@@ -20,13 +20,17 @@ comment_on_version, decide_version) and their `describe()` previews.
 Every write tool is caught by brain.py's confirm-before-write flow — none
 of them ever run on the first ask.
 """
+
+# edited by reem:
+#   - visibility gates on every by-id read and all four writes
+#   - strips staff names, assignee_name and published_to_client for clients
+#   - new tool: get_task_notes, with client_visible filtering
+#   - is_destructive() — which writes need the typed phrase
 from __future__ import annotations
 
 from . import himedia
 from .identity import allowed, is_client, phone_of
 
-# edited by reem — added the gates below. the API filters list endpoints
-# by phone, but not the by-id ones, so we check those ourselves.
 # --- May this person open this exact row? -----------------------------------
 #
 # The list endpoints take phone= and the sandbox filters them for us. The
@@ -152,7 +156,6 @@ def run_get_review_notes(person: dict, args: dict):
     ]
 
 
-# edited by reem — new tool. nothing else in the project read task comments.
 def run_get_task_notes(person: dict, args: dict) -> dict:
     """The conversation attached to one task.
 
@@ -244,7 +247,6 @@ def run_decide_version(person: dict, args: dict) -> dict:
     return {"version_id": version_id, "decision": args["decision"]}
 
 
-# edited by reem — decides which writes need the typed phrase.
 # --- Which writes are a point of no return? ---------------------------------
 #
 # Destructiveness is a property of the ACTION, not of the tool: moving a task
@@ -580,7 +582,6 @@ def tools_for(person: dict) -> list[dict]:
     return usable
 
 
-# edited by reem — checked before a write is previewed, not just before it runs.
 def may_act_on(person: dict, args: dict) -> bool:
     """Can this caller touch the row these arguments name?
 

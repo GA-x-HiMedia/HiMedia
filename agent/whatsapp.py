@@ -3,6 +3,9 @@ Turns a WhatsApp webhook into (phone, text), calls brain, sends the answer
 back. Thin — this file should not contain any conversation logic of its
 own (Chapter 22, 28-29).
 """
+
+# edited by reem: routes through identity.device_gate, so an unknown
+# number is refused and a known number on a new device is challenged.
 from __future__ import annotations
 
 import logging
@@ -72,23 +75,19 @@ def think_and_send(sender: str, text: str) -> None:
     try:
         person = identity.who_is(sender)
 
-        # TEMP (Sara's task): an unknown device verifies before anything else.
-        gate = identity.device_gate(sender, text) if person is not None else None
+        # An unknown number is refused here and a known number on a new device
+        # is challenged here. Both answers come back from the same call, so the
+        # two cases cannot drift apart. See identity.device_gate.
+        gate = identity.device_gate(person, sender, text)
         if gate is not None:
             send_whatsapp(sender, gate)
             return
 
-        if person is None:
-            reply = (
-                "ما لقيت رقمك في نظام HiMedia. "
-                "كلّم مسؤول الحساب عندكم عشان يضيفك."
-            )
-        else:
-            reply = brain.reply_to(
-                person,
-                text,
-                identity.tidy(sender),
-            )
+        reply = brain.reply_to(
+            person,
+            text,
+            identity.tidy(sender),
+        )
 
         send_whatsapp(sender, reply)
 
