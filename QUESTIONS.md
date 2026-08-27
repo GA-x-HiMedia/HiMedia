@@ -39,7 +39,7 @@ to office hours or the client/instructional check-in (Handbook Ch. 36
   Confirmed the same way for the by-id reads generally — they ignore
   `phone=` even when you pass it:
 
-      GET /v1/tasks/tsk_0001?phone=<Fatima>  -> "Edit the Ramadan hero film — v3"
+      GET /v1/tasks/tsk_0001?phone=<Fatima>  -> "Ed… — v3"  (an internal task title, masked)
 
   That is an internal task (`client_visible: false`) returned in full to a
   client's phone number, title and all. Chapter 16's "almost every list

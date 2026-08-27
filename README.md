@@ -168,6 +168,102 @@ That subtraction is why "Manara" is *not* forbidden: Bank of Salam is
 genuinely a client of Manara Studios (Ch. 7), so banning the word would flag a
 correct answer.
 
+### Two lists, and neither is dropped
+
+**The floor** is the handbook's seven (Ch. 30) — `Khalid`, `Batelco`,
+`invoice`, `v3`, `internal`, `Manara`, `1,400`. Fixed, never derived, so it
+catches its seven even if the demo data changes underneath us.
+
+**The derived set** is everything other people can see that this caller
+cannot, pulled live. It adapts to the data and catches the real staff names
+and internal task titles the handbook's seven never mention.
+
+The list is **per caller**, because one word genuinely differs by audience.
+`Manara` is forbidden for Hussain Media staff — a competitor's work must never
+appear in their answers — but not for Fatima, who is Manara's client too. A
+single global list cannot express that, so `floor_for()` reports what it drops
+and why rather than dropping it silently.
+
+`internal` is an ordinary English word and *will* fire on innocent replies.
+It stays: it is on the handbook's list, and for a leak test a false alarm is
+the safe direction to be wrong in.
+
+The derived half compares against **three** pairs of eyes, not one:
+
+| Phone | Who | Why they matter |
+|---|---|---|
+| +97333000003 | editor @ Hussain Media | the main internal world |
+| +97333000030 | client_approver @ Batelco | Ch. 20 — must see *zero* of Bank of Salam's work |
+| +97333000011 | editor @ Manara Studios | Ch. 9 — her one task must never surface |
+
+Deriving from Khalid alone was blind by construction: anything **neither** he
+nor Fatima could see never entered the comparison. Adding Rashid and Hala
+caught Manara's deliverable, which is invisible to both.
+
+### The list never reaches disk or stdout
+
+The forbidden list *is* staff-only data. Ch. 33 asks for test output in the
+README, so a run that printed a staff member's full name next to the word
+`LEAKED` would itself be the leak it exists to prevent. Therefore: nothing is ever cached to a file, and
+every value that reaches a report or an assertion message is masked to its
+first two characters (`seed_forbidden.mask`). To see a value in full, run the
+test locally.
+
+### Proof the regression tests actually regress
+
+A test that passes when its fix is removed is testing nothing. Each fix was
+removed in turn and the matching test re-run:
+
+```
+test                                                        fix removed   fix present
+-------------------------------------------------------------------------------------
+test_leak_review_notes_on_another_clients_version           failed        passes
+test_leak_staff_name_in_review_note_author                  failed        passes
+test_leak_internal_comment_on_a_version                     failed        passes
+test_leak_published_to_client_flag_shown_to_a_client        failed        passes
+test_leak_internal_task_comment_reaches_a_client            failed        passes
+test_leak_task_notes_on_an_internal_task                    failed        passes
+test_leak_cross_company_write_is_not_policed_by_the_api     failed        passes
+test_leak_write_preview_echoes_an_invisible_row             failed        passes
+test_leak_held_write_runs_after_permission_is_lost          failed        passes
+test_leak_stale_held_write_still_runs                       failed        passes
+test_leak_caller_phone_can_be_overridden_by_tool_arguments  failed        passes
+test_leak_staff_assignee_name_on_the_clients_own_task       failed        passes
+```
+
+Which leak each one closes:
+
+| Test | The fix it guards |
+|---|---|
+| `review_notes_on_another_clients_version` | visibility gate on a by-id read |
+| `staff_name_in_review_note_author` | a client is told which *side* spoke, never who |
+| `internal_comment_on_a_version` | `client_visible: false` notes dropped for clients |
+| `published_to_client_flag_shown_to_a_client` | internal bookkeeping stays staff-only |
+| `internal_task_comment_reaches_a_client` | `client_visible_only` set from the caller's audience |
+| `task_notes_on_an_internal_task` | visibility gate before reading a task by id |
+| `cross_company_write_is_not_policed_by_the_api` | gate on every write; the sandbox does not check company on `PATCH /v1/tasks/{id}` |
+| `write_preview_echoes_an_invisible_row` | the preview is an answer too, so it is gated |
+| `held_write_runs_after_permission_is_lost` | permissions re-checked when the write runs |
+| `stale_held_write_still_runs` | a held write expires |
+| `caller_phone_can_be_overridden_by_tool_arguments` | the phone comes from `person`, never `args` |
+| `staff_assignee_name_on_the_clients_own_task` | `?phone=` filters rows, not fields |
+
+### What this testing does NOT catch
+
+Word matching is the floor of leak detection, not the ceiling. A reply that
+says *"your editor"* instead of `Khalid`, or *"twelve days overdue"* instead
+of `1,400`, passes every check in this repo and is still a leak. So is a reply
+that confirms something exists without naming it — *"there is a version you
+cannot see yet"* tells the client exactly what Ch. 2 says they must never
+learn.
+
+We have not tried to build semantic leak detection, and would not trust one we
+wrote in a fortnight. The mitigation is structural rather than textual: the
+forbidden values are filtered out in `agent/tools.py` **before the prompt is
+built**, so the model is never in a position to paraphrase what it was never
+given. The word check is a backstop that proves that filtering held — it is
+not the thing doing the protecting.
+
 **Timing per stage** (`audit.log_stage`) goes to the same log: each model
 round, each tool call, `identity.who_is` with cache hit or miss, rounds used
 out of `MAX_ROUNDS`, and the total per message, each tagged `ar` or `en`.

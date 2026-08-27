@@ -374,7 +374,7 @@ quietly fixed: a failing call is evidence about the call, not about the host.
 Ch. 16 says "almost every list endpoint accepts `phone=`" — and that is exactly
 right, for *list* endpoints. Proved the by-id ones do not, live:
 
-    GET /v1/tasks/tsk_0001?phone=<Fatima>  ->  "Edit the Ramadan hero film — v3"
+    GET /v1/tasks/tsk_0001?phone=<Fatima>  ->  "Ed… — v3"  (an internal task title, masked)
 
 That is an internal task returned in full to a client's number, title and all,
 with `phone=` passed and ignored. Its comments came back the same way, carrying
@@ -418,8 +418,8 @@ both staff names.
 ### A field-level leak the row-level filter does not cover
 
 `?phone=` filters which ROWS a client gets, not which FIELDS. The live API
-returns Fatima her own two tasks with `assignee_name: "Khalid Mansoor"` and
-`"Noor Habib"` attached. Our `run_list_tasks` already drops it by picking
+returns Fatima her own two tasks with `assignee_name` carrying a staff member's full name (two of them,
+masked here as `Kh…` and `No…`) attached. Our `run_list_tasks` already drops it by picking
 fields explicitly, but nothing asserted that, and my forbidden-word derivation
 was subtracting the raw response — which deleted "Khalid" and "Noor", the two
 names that matter most, from the forbidden list. Both fixed;
@@ -520,3 +520,51 @@ Two real weaknesses were there instead, and both are fixed:
   rewrite touched only commit messages, never content.
 - Consolidated the attribution markers to ONE block per file, under the module
   docstring, listing that file edits. Nineteen scattered markers were noise.
+
+## Step 13 — making the leak test airtight
+
+1. **Floor plus derived, never one or the other.** `FLOOR` is Ch. 30 seven,
+   fixed. `derived_for()` adds everything other eyes can see that this caller
+   cannot. `forbidden_for()` returns floor + derived.
+2. **The list is per caller, and always was in shape** — `build()` already took
+   the caller phone. What was missing was the floor being per caller too.
+   `floor_for()` now returns (kept, dropped) so the one genuine conflict is
+   visible: Manara drops for a Bank of Salam client (Ch. 7 — she is their
+   client) and stays for Hussain Media staff. Reported, never silent.
+3. **Kept "internal" even though it is an ordinary English word** and will fire
+   on innocent replies. It is on the handbook list, and for a leak test a false
+   alarm is the safe direction to be wrong in. Noted in the README so nobody
+   "fixes" it later.
+4. **Three pairs of eyes, not one.** Added Rashid (Batelco) and Hala (Manara).
+   Growth: **+1 value** — Manara task title, 41 characters, invisible to both
+   Khalid and Fatima and therefore invisible to the old subtraction. The growth
+   is small because staff names already came from
+   `list_users(audience="internal")`, which spans BOTH production companies
+   (9 people), and Batelco work was already visible to Khalid. Small number,
+   but it is exactly the blind spot that was predicted.
+5. **Nothing reaches disk; stdout is masked.** Audit found no file caching, but
+   two real stdout leaks: the fixture printed the ENTIRE derived list on every
+   PASSING run, and failure messages printed full values plus the whole reply
+   and 4000 characters of outbound payload. Both fixed — `mask()` shows two
+   characters. Also masked three staff values already sitting in DECISIONS.md
+   and QUESTIONS.md, and one in the README where the sentence WARNING about
+   printing a staff name contained a staff name.
+6. **Proved the regressions regress by removing each fix in turn**, not by
+   reverting to the old commit. Reverting made all 12 ERROR on the fixture,
+   which proves nothing about the assertions. Removing one fix at a time gives
+   12 rows of "fix removed -> failed, fix present -> passes". No test passes
+   with its fix removed, so none is testing nothing. Table in the README.
+7. **All seven Ch. 30 attacks are now named tests**, each asserting its own
+   expected outcome, replacing one parametrised test that shared a generic
+   check. Ch. 20 isolation numbers and the unknown-number case already existed
+   from earlier steps.
+8. **Named the limit of word matching in the README** rather than trying to
+   build semantic detection: "your editor" instead of a name, or "twelve days
+   overdue" instead of a figure, passes every check here and is still a leak.
+   The real defence is that the values are filtered before the prompt is built,
+   so the model cannot paraphrase what it never received.
+
+- **Did NOT run reset-demo.** It wipes data every other team in the class is
+  working on, the handbook says to tell classmates first, and I cannot tell
+  them. Everything above was derived from the sandbox as it currently stands.
+  Waiting on the go-ahead.
