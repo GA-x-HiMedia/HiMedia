@@ -1,8 +1,4 @@
-"""
-Turns a WhatsApp webhook into (phone, text), calls brain, sends the answer
-back. Thin — this file should not contain any conversation logic of its
-own (Chapter 22, 28-29).
-"""
+"""Handles WhatsApp messages and sends agent responses."""
 
 from __future__ import annotations
 
@@ -25,9 +21,10 @@ def verify(
     token: str = Query(alias="hub.verify_token"),
     challenge: str = Query(alias="hub.challenge"),
 ):
-    """WhatsApp's one-time handshake before it will send anything (Ch. 28)."""
+    """Verifies the WhatsApp webhook."""
     if mode == "subscribe" and token == WHATSAPP_VERIFY_TOKEN:
         return PlainTextResponse(challenge)
+
     return PlainTextResponse("forbidden", status_code=403)
 
 
@@ -38,23 +35,26 @@ async def incoming(request: Request, bg: BackgroundTasks):
     try:
         value = body["entry"][0]["changes"][0]["value"]
         msg = value["messages"][0]
+
     except (KeyError, IndexError):
-        return {"ok": True}  # a delivery receipt, not a message
+        # Ignore delivery updates and non-message events.
+        return {"ok": True}
 
     if msg.get("type") != "text":
-        return {"ok": True}  # image, audio, sticker — ignore for now
+        # Ignore unsupported message types.
+        return {"ok": True}
 
-    sender = msg["from"]  # e.g. "97333000003" — no plus sign
+    sender = msg["from"]
     text = msg["text"]["body"]
 
-    # Answer WhatsApp immediately so it doesn't retry; do the real work
-    # in a background task (Chapter 29 — "answer immediately, think
-    # afterwards").
+    # Process the message in the background.
     bg.add_task(think_and_send, sender, text)
+
     return {"ok": True}
 
 
 def send_whatsapp(to: str, text: str) -> None:
+    """Sends a text message through the WhatsApp API."""
     response = httpx.post(
         f"https://graph.facebook.com/v21.0/{WHATSAPP_PHONE_ID}/messages",
         headers={"Authorization": f"Bearer {WHATSAPP_TOKEN}"},
@@ -66,17 +66,18 @@ def send_whatsapp(to: str, text: str) -> None:
         },
         timeout=15.0,
     )
+
     response.raise_for_status()
 
 
 def think_and_send(sender: str, text: str) -> None:
+    """Identifies the user, processes the message, and sends a reply."""
     try:
         person = identity.who_is(sender)
 
-        # An unknown number is refused here and a known number on a new device
-        # is challenged here. Both answers come back from the same call, so the
-        # two cases cannot drift apart. See identity.device_gate.
+        # Check the user's device before processing the request.
         gate = identity.device_gate(person, sender, text)
+
         if gate is not None:
             send_whatsapp(sender, gate)
             return

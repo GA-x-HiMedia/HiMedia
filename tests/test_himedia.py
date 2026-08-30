@@ -1,8 +1,14 @@
 """
-HiMedia API client tests. Checks GET, POST, and PATCH requests, parameter
-and JSON handling, successful responses, and API error handling. Uses
-mocked HTTP requests, so no real network call is made.
+HiMedia API client tests.
+
+Checks that GET, POST, and PATCH requests send the correct parameters and
+JSON bodies, successful responses are returned correctly, and expected API
+errors are converted into ApiRefused exceptions.
+
+All HTTP requests are mocked, so these tests do not need network access or
+a real API key.
 """
+
 import pytest
 import httpx
 
@@ -10,6 +16,7 @@ from agent import himedia
 
 
 def test_get_sends_clean_parameters(monkeypatch):
+    """GET requests should remove parameters whose value is None."""
     captured = {}
 
     def fake_request(method, url, headers, timeout, **kwargs):
@@ -20,6 +27,7 @@ def test_get_sends_clean_parameters(monkeypatch):
         captured["kwargs"] = kwargs
 
         request = httpx.Request(method, url)
+
         return httpx.Response(
             200,
             json={"ok": True},
@@ -42,6 +50,7 @@ def test_get_sends_clean_parameters(monkeypatch):
 
 
 def test_post_sends_json_body(monkeypatch):
+    """POST requests should send the supplied data as a JSON body."""
     captured = {}
 
     def fake_request(method, url, headers, timeout, **kwargs):
@@ -49,6 +58,7 @@ def test_post_sends_json_body(monkeypatch):
         captured["kwargs"] = kwargs
 
         request = httpx.Request(method, url)
+
         return httpx.Response(
             200,
             json={"ok": True},
@@ -67,6 +77,7 @@ def test_post_sends_json_body(monkeypatch):
 
 
 def test_patch_sends_json_body(monkeypatch):
+    """PATCH requests should send the supplied data as a JSON body."""
     captured = {}
 
     def fake_request(method, url, headers, timeout, **kwargs):
@@ -74,6 +85,7 @@ def test_patch_sends_json_body(monkeypatch):
         captured["kwargs"] = kwargs
 
         request = httpx.Request(method, url)
+
         return httpx.Response(
             200,
             json={"updated": True},
@@ -93,6 +105,7 @@ def test_patch_sends_json_body(monkeypatch):
 
 @pytest.mark.parametrize("status_code", [400, 403, 404, 409, 422])
 def test_api_errors_raise_api_refused(monkeypatch, status_code):
+    """Expected API errors should be converted into ApiRefused."""
 
     def fake_request(method, url, headers, timeout, **kwargs):
         request = httpx.Request(method, url)
@@ -118,6 +131,7 @@ def test_api_errors_raise_api_refused(monkeypatch, status_code):
 
 
 def test_successful_call_returns_json(monkeypatch):
+    """A successful API call should return the decoded JSON response."""
 
     def fake_request(method, url, headers, timeout, **kwargs):
         request = httpx.Request(method, url)
@@ -138,6 +152,7 @@ def test_successful_call_returns_json(monkeypatch):
 
 
 def test_unexpected_http_error_is_raised(monkeypatch):
+    """Unexpected server errors should remain HTTP errors."""
 
     def fake_request(method, url, headers, timeout, **kwargs):
         request = httpx.Request(method, url)

@@ -1,43 +1,11 @@
-"""
-The tool catalogue (Chapters 25-26). Eleven tools: identity, plus read/write
-pairs across tasks, projects, and reviews/versions. `get_task_notes` is the
-only one that reads task comments, which is where `client_visible: false`
-internal discussion lives.
-
-Filtering here (`tools_for`) is a convenience, not a lock — it stops the
-model wasting a turn or claiming a capability it doesn't have. The real
-boundary is the sandbox API itself: every handler passes the CALLER'S OWN
-phone number, never one from `args`, and HiMedia decides what data comes
-back or whether a write is actually allowed. A caller can hold
-reviews:write scope and still get a clean 403 from decide_version if
-their approval_rank is too low for that review stage (Chapter 10 — rank
-is separate from read/write scope) — the check below controls what gets
-OFFERED, never what the API ultimately PERMITS.
-
-Phase 3 adds the five write tools (create_task, update_task_status,
-comment_on_task, comment_on_version, decide_version) and their `describe()`
-previews.
-Every write tool is caught by brain.py's confirm-before-write flow — none
-of them ever run on the first ask.
-"""
+"""Defines the agent's tools and access controls."""
 
 from __future__ import annotations
 
 from . import himedia
 from .identity import allowed, is_client, phone_of
 
-# --- May this person open this exact row? -----------------------------------
-#
-# The list endpoints take phone= and the sandbox filters them for us. The
-# by-id endpoints (/v1/tasks/{id}, /v1/versions/{id}, and their comment
-# sub-resources) do NOT — they trust our API key and hand over anything we
-# name. Without the gate below, a client who names an internal task id learns
-# its title, its state and every staff note on it, and a client at one company
-# can reach another company's work (PERMISSIONS.md: "Neither should ever see
-# the other's projects, tasks, or versions").
-#
-# The fix is the one the whole project rests on: ask the API what this person
-# can see, using their OWN phone number, and refuse anything not in that list.
+# Check whether the user can access a specific item.
 
 NOT_YOURS = {
     "refused": "NOT_VISIBLE_TO_YOU",
@@ -49,11 +17,13 @@ NOT_YOURS = {
 
 
 def _visible_task_ids(person: dict) -> set[str]:
+    """Returns task IDs visible to the user."""
     tasks = himedia.list_tasks(phone=phone_of(person), open_only=False)["data"]
     return {task["id"] for task in tasks}
 
 
 def _visible_version_ids(person: dict) -> set[str]:
+    """Returns version IDs visible to the user."""
     return {v["id"] for v in himedia.list_versions(phone=phone_of(person))}
 
 
@@ -62,15 +32,13 @@ def _visible_project_ids(person: dict) -> set[str]:
 
 
 def _speaker(comment: dict, client: bool) -> str:
-    """Who said it, at the level of detail this caller may have. A client is
-    told which SIDE spoke, never which person — staff names are internal
-    (README client voice: "Never mention internal drafts, staff names, costs")."""
+    """Returns the appropriate speaker name for the user."""
     if not client:
         return comment.get("author_name")
     return "your team" if comment.get("author_kind") == "client" else "the production team"
 
 
-# --- Read handlers ----------------------------------------------------------
+# Read tools.
 
 
 def run_who_am_i(person: dict, args: dict) -> dict:
@@ -139,11 +107,7 @@ def run_get_review_notes(person: dict, args: dict):
     )
     client = is_client(person)
     if client:
-        # Belt and braces. Version comments are not documented to carry the
-        # client_visible flag the way task comments do, but if any row does
-        # carry it we honour it rather than discovering the hard way that they
-        # sometimes do. An absent flag is left alone; only an explicit false is
-        # dropped.
+        # Hide explicitly internal comments from clients.
         notes = [n for n in notes if n.get("client_visible") is not False]
     return [
         {
@@ -156,14 +120,7 @@ def run_get_review_notes(person: dict, args: dict):
 
 
 def run_get_task_notes(person: dict, args: dict) -> dict:
-    """The conversation attached to one task.
-
-    client_visible_only is set from the caller's audience and never from args.
-    The API does NOT apply the audience rule for us: confirmed live against
-    tsk_0002, where the unfiltered call returned an internal comment in full,
-    author name included (QUESTIONS.md carries the evidence). This is the only
-    path in the project that reads task comments.
-    """
+    """Returns comments for a task visible to the user."""
     task_id = args["task_id"]
     if task_id not in _visible_task_ids(person):
         return NOT_YOURS
@@ -187,9 +144,7 @@ def run_get_task_notes(person: dict, args: dict) -> dict:
     }
 
 
-# --- Write handlers (Phase 3) -----------------------------------------------
-# Every one of these is only ever called from brain.py's confirmed-write
-# path — never directly from the first model tool_call.
+# Write tools run only after confirmation.
 
 
 def run_create_task(person: dict, args: dict) -> dict:
@@ -262,9 +217,7 @@ def run_comment_on_version(person: dict, args: dict) -> dict:
 
 def run_decide_version(person: dict, args: dict) -> dict:
     version_id = args["version_id"]
-    # The sandbox does NOT check company on a write: without this gate a client
-    # at one company can approve another company's version just by naming its
-    # id. Reads are filtered by ?phone=; writes are not filtered at all.
+    # Verify that the version belongs to the user's visible data.
     if version_id not in _visible_version_ids(person):
         return NOT_YOURS
 
@@ -277,29 +230,11 @@ def run_decide_version(person: dict, args: dict) -> dict:
     return {"version_id": version_id, "decision": args["decision"]}
 
 
-# --- Which writes are a point of no return? ---------------------------------
-#
-# Destructiveness is a property of the ACTION, not of the tool: moving a task
-# to in_progress and moving it to client_review are the same tool and are not
-# remotely the same act. So this is decided from the tool AND its arguments,
-# and the catalogue entries below carry either a flag or a predicate.
-#
-# The rule, applied consistently: a write needs the typed phrase when it is
-# irreversible, or when it crosses the line to the client and cannot be
-# un-sent. Everything else keeps the ordinary yes/no. Gating more than that is
-# not extra safety — people who are asked to retype a phrase ten times a day
-# stop reading it, and then it protects nothing.
-#
-# Note nothing the agent can do deletes anything: its whole write surface is
-# PATCH /v1/tasks/{id} and three POSTs, and the API offers no way to delete a
-# task or a version at any level. (It does expose DELETE /v1/users/{id}, which
-# this agent neither offers nor calls — checked against the API's own schema.)
-# So "cancelled" is the nearest thing to destroying work that any of these
-# actions can reach.
+# Actions that require stronger confirmation.
 
 POINT_OF_NO_RETURN_STATUSES = {
-    "client_review",   # the client can now see it; you cannot un-send it
-    "cancelled",       # the nearest thing to deleting work this API offers
+    "client_review",  # Makes the task visible to the client.
+    "cancelled",      # Cancels the task.
 }
 
 
@@ -308,19 +243,12 @@ def _status_is_final(args: dict) -> bool:
 
 
 def _comment_reaches_the_client(args: dict) -> bool:
-    # An internal note is cheap to get wrong. One the client can read is not.
+    """Checks whether a comment will be visible to the client."""
     return bool(args.get("client_visible"))
 
 
 def is_destructive(tool_name: str, args: dict) -> bool:
-    """Does this exact call need the typed confirmation phrase?
-
-    Looked up by NAME in the real catalogue rather than read off a tool dict
-    handed to us, so the answer cannot be spoofed by a forged tool. Anything
-    not found, or a write tool that forgot to declare itself, is treated as
-    destructive — a missed classification should fail towards asking, never
-    towards acting.
-    """
+    """Checks whether an action needs stronger confirmation."""
     tool = next((t for t in ALL_TOOLS if t["function"]["name"] == tool_name), None)
     if tool is None:
         return True
@@ -331,7 +259,8 @@ def is_destructive(tool_name: str, args: dict) -> bool:
     return bool(verdict(args)) if callable(verdict) else bool(verdict)
 
 
-# --- Catalogue ----------------------------------------------------------
+# Tool catalogue.
+
 
 ALL_TOOLS: list[dict] = [
     {
@@ -474,8 +403,7 @@ ALL_TOOLS: list[dict] = [
         "needs": ("tasks", "write"),
         "audience": "internal",
         "writes": True,
-        # Internal discussion is ordinary. Publishing a line to the client is
-        # not, and cannot be taken back.
+        # Stronger confirmation if the client can see the comment.
         "destructive": _comment_reaches_the_client,
         "run": run_comment_on_task,
     },
@@ -599,10 +527,7 @@ ALL_TOOLS: list[dict] = [
         "needs": ("reviews", "write"),
         "audience": "both",
         "writes": True,
-        # Deliberately NOT gated. It is the highest-frequency write in the
-        # project and it only ADDS information — a wrong note is answered with
-        # another note. Putting a phrase in front of every comment is how a
-        # confirmation gate becomes muscle memory.
+        # Version comments are reversible by adding another comment.
         "destructive": False,
         "run": run_comment_on_version,
     },
@@ -630,7 +555,7 @@ ALL_TOOLS: list[dict] = [
         "needs": ("reviews", "write"),
         "audience": "both",
         "writes": True,
-        # Always. It decides on the client's behalf and there is no undo.
+        # Always requires stronger confirmation.
         "destructive": True,
         "run": run_decide_version,
     },
@@ -638,9 +563,7 @@ ALL_TOOLS: list[dict] = [
 
 
 def tools_for(person: dict) -> list[dict]:
-    """The tools this person may use, for this message (Chapter 26).
-    Mechanical, no per-tool special cases: offered iff the audience matches
-    and their LIVE permissions map satisfies what the tool needs."""
+    """Returns the tools available to the current user."""
     usable = []
     for tool in ALL_TOOLS:
         if tool["audience"] != "both" and tool["audience"] != person["audience"]:
@@ -654,13 +577,7 @@ def tools_for(person: dict) -> list[dict]:
 
 
 def may_act_on(person: dict, args: dict) -> bool:
-    """Can this caller touch the row these arguments name?
-
-    Called before a write is PREVIEWED, not just before it runs. Without it the
-    agent will happily read back "Approve version ver_teaser_v1?" to someone at
-    another company — refusing only after they say yes. The preview itself is
-    an answer, so it has to be gated too.
-    """
+    """Checks whether the user can act on the requested item."""
     task_id = args.get("task_id")
     if task_id is not None and task_id not in _visible_task_ids(person):
         return False
@@ -673,20 +590,18 @@ def may_act_on(person: dict, args: dict) -> bool:
 
 
 def public_part(tool: dict) -> dict:
-    """Only what the model is allowed to see — never `needs`, `audience`,
-    `writes`, or `run`, which are ours."""
+    """Returns only the tool definition visible to the AI."""
     return {"type": tool["type"], "function": tool["function"]}
 
 
 def find_tool(name: str, available: list[dict]) -> dict | None:
-    """Only offered tools may run — look the request up in THIS turn's
-    filtered list, never the full catalogue. Closes the gap where a model
-    asks for a tool it saw in an earlier conversation."""
+    """Finds a tool from the user's available tools."""
     return next((t for t in available if t["function"]["name"] == name), None)
 
 
 def describe(tool_name: str, args: dict) -> str:
-    """One-line, human-readable preview of a pending write, shown to the
+
+    """Creates a readable preview of a pending action."""
     person before anything actually happens."""
     if tool_name == "create_task":
         return (f"Create task \u201c{args.get('title', '')}\u201d "

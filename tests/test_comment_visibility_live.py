@@ -1,27 +1,8 @@
 """
-Settles the open question in QUESTIONS.md:
+Live tests for task comment visibility.
 
-    Does GET /tasks/{id}/comments filter out `client_visible: false` comments
-    automatically for a client caller, or do we have to pass
-    `client_visible_only=true` ourselves every time?
-
-    RUN_LIVE_TESTS=1 pytest tests/test_comment_visibility_live.py -v -s
-
-or, to print raw evidence to paste into QUESTIONS.md:
-
-    python -m tests.test_comment_visibility_live
-
-The experiment is the one the question asks for: find a task that genuinely
-has a `client_visible: false` comment on it and that a client can see, then
-make the SAME call twice — once on behalf of the client, once on behalf of
-staff — and compare what comes back.
-
-Note what "on behalf of" can and cannot mean here. The comments endpoint takes
-no `phone` parameter: it authenticates with our API key and has no idea who is
-asking unless we tell it. That is precisely why the question matters, and the
-test below reads the answer off the response rather than assuming it.
-
-Written by Reem.
+Checks whether internal comments are hidden from client users and
+verifies that the agent applies the correct visibility filter.
 """
 import pytest
 
@@ -29,13 +10,12 @@ from agent import himedia, identity, tools
 
 pytestmark = pytest.mark.live
 
-FATIMA = "+97333000020"   # client_approver @ Bank of Salam
-KHALID = "+97333000003"   # editor @ Hussain Media
+FATIMA = "+97333000020"  # Client test user.
+KHALID = "+97333000003"  # Internal test user.
 
 
 def _find_task_with_an_internal_comment():
-    """A task the client can see that also carries a client_visible:false
-    comment. Without one, the question cannot be answered either way."""
+    """Finds a client-visible task with an internal comment."""
     client_task_ids = {
         t["id"] for t in himedia.list_tasks(phone=FATIMA, open_only=False)["data"]
     }
@@ -47,6 +27,7 @@ def _find_task_with_an_internal_comment():
 
 
 def evidence() -> str:
+    """Returns the raw visibility test results."""    
     task_id, all_comments = _find_task_with_an_internal_comment()
     lines = []
 
@@ -88,8 +69,7 @@ def evidence() -> str:
 
 
 def test_the_api_does_not_apply_the_audience_rule_for_us():
-    """The load-bearing assertion: whatever the API does, our own tool must not
-    hand a client an internal comment."""
+    """Checks that clients cannot receive internal comments."""
     task_id, all_comments = _find_task_with_an_internal_comment()
     if task_id is None:
         pytest.skip("no client-visible task currently carries a client_visible:false comment")
@@ -111,8 +91,7 @@ def test_the_api_does_not_apply_the_audience_rule_for_us():
             f"LEAKED an internal comment to a client on {task_id}: {body!r}"
         )
 
-    # And the same call as staff must still show it — the filter is about
-    # audience, not about hiding data from everyone.
+    # Staff should still see internal comments.
     assert any(body in str(staff_view) for body in internal_bodies), (
         "staff should still see internal comments on their own task"
     )

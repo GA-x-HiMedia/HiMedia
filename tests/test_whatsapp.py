@@ -1,9 +1,12 @@
 """
-WhatsApp webhook tests. Checks webhook verification, incoming message
-handling, background processing, outgoing WhatsApp requests, and unknown
-user handling. External HTTP calls are mocked, so no real WhatsApp API
-request is made.
+WhatsApp webhook tests.
+
+Checks webhook verification, incoming message handling, background processing,
+outgoing WhatsApp requests, and unknown user handling.
+
+External HTTP calls are mocked, so no real WhatsApp API request is made.
 """
+
 from fastapi.testclient import TestClient
 
 from agent import whatsapp
@@ -13,12 +16,13 @@ client = TestClient(whatsapp.app)
 
 
 def test_verify_whatsapp_success(monkeypatch):
+    """Test successful WhatsApp webhook verification."""
     monkeypatch.setattr(
         whatsapp,
         "WHATSAPP_VERIFY_TOKEN",
         "test_token",
     )
-    
+
     response = client.get(
         "/whatsapp",
         params={
@@ -33,6 +37,7 @@ def test_verify_whatsapp_success(monkeypatch):
 
 
 def test_verify_whatsapp_wrong_token(monkeypatch):
+    """Test that webhook verification fails with an invalid token."""
     monkeypatch.setattr(
         whatsapp,
         "WHATSAPP_VERIFY_TOKEN",
@@ -53,6 +58,7 @@ def test_verify_whatsapp_wrong_token(monkeypatch):
 
 
 def test_delivery_receipt_returns_ok():
+    """Test that delivery receipts are accepted successfully."""
     response = client.post(
         "/whatsapp",
         json={
@@ -73,6 +79,7 @@ def test_delivery_receipt_returns_ok():
 
 
 def test_non_text_message_is_ignored():
+    """Test that non-text messages are ignored."""
     response = client.post(
         "/whatsapp",
         json={
@@ -100,6 +107,7 @@ def test_non_text_message_is_ignored():
 
 
 def test_text_message_is_sent_to_background_task(monkeypatch):
+    """Test that incoming text messages are processed in the background."""
     calls = []
 
     def fake_think_and_send(sender, text):
@@ -145,6 +153,7 @@ def test_text_message_is_sent_to_background_task(monkeypatch):
 
 
 def test_send_whatsapp_sends_correct_request(monkeypatch):
+    """Test that send_whatsapp creates the correct API request."""
     captured = {}
 
     class FakeResponse:
@@ -193,6 +202,7 @@ def test_send_whatsapp_sends_correct_request(monkeypatch):
 
 
 def test_unknown_user_gets_polite_message(monkeypatch):
+    """Test that an unknown user receives a polite response."""
     sent_messages = []
 
     monkeypatch.setattr(
@@ -215,7 +225,5 @@ def test_unknown_user_gets_polite_message(monkeypatch):
     )
 
     assert len(sent_messages) == 1
-
     assert sent_messages[0][0] == "97300000000"
-
     assert "ما لقيت رقمك" in sent_messages[0][1]

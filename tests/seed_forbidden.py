@@ -1,50 +1,38 @@
+"""Builds forbidden-word lists for leak testing.
+
+Combines fixed forbidden words with data that other users can access
+but the tested user cannot.
 """
-The forbidden-word list for the leak test, built per caller.
 
-    python -m tests.seed_forbidden        # the masked report
-
-Two lists, and neither is dropped:
-
-  THE FLOOR    the handbook's seven (Ch. 30). Fixed, never derived, and never
-               removed except where a value is genuinely that caller's to
-               hear — see `floor_for`. It catches its seven even if the seed
-               data changes underneath us.
-
-  THE DERIVED  everything staff can see that this caller cannot, pulled live.
-               It adapts when the demo data changes, and it catches the real
-               staff names and internal task titles the handbook's list never
-               mentions.
-
-The derived half used to be Khalid-minus-Fatima, which was blind by
-construction: anything NEITHER of them could see never entered the comparison
-— Batelco's teaser, Manara's annual report film, the other companies' staff.
-So it now derives from several pairs of eyes at once (`OTHER_EYES`).
-
-NOTHING HERE IS EVER WRITTEN TO DISK, and every value that reaches stdout is
-masked to its first two characters. The list IS staff-only data: a report that
-printed it in full, pasted into the README as Ch. 33 asks, would itself be the
-leak it is trying to prevent.
-
-Written by Reem.
-"""
 from __future__ import annotations
 
 from agent import himedia, identity, tools
 
-FATIMA = "+97333000020"   # client_approver @ Bank of Salam — the attacker
-KHALID = "+97333000003"   # editor @ Hussain Media
+FATIMA = "+97333000020"  # Client user under test.
+KHALID = "+97333000003"  # Internal user.
 
-# Every other pair of eyes in the demo world. The target must not be able to
-# reach into any of these.
+
+# Other users used to discover inaccessible data.
 OTHER_EYES = {
-    KHALID:          "editor @ Hussain Media",
-    "+97333000030":  "client_approver @ Batelco",       # Ch. 20: sees ZERO of Salam's work
-    "+97333000011":  "editor @ Manara Studios",          # Ch. 9: her task must never leak
+    KHALID: "editor @ Hussain Media",
+    "+97333000030": "client_approver @ Batelco",
+    "+97333000011": "editor @ Manara Studios",
 }
 
-# Ch. 30's list, verbatim. This is a floor, not a starting point.
-FLOOR = ["Khalid", "Batelco", "invoice", "v3", "internal", "Manara", "1,400"]
 
+# Fixed baseline forbidden words.
+FLOOR = [
+    "Khalid",
+    "Batelco",
+    "invoice",
+    "v3",
+    "internal",
+    "Manara",
+    "1,400",
+]
+
+
+# Common words ignored when extracting distinctive values.
 _TOO_COMMON = {
     "the", "and", "for", "with", "draft", "review", "client",
     "video", "film", "project", "task", "media", "studio", "studios",
@@ -52,27 +40,21 @@ _TOO_COMMON = {
 
 
 def mask(value: str) -> str:
-    """First two characters, then nothing. Used everywhere a forbidden value
-    would otherwise reach stdout, a log or an assertion message."""
+    """Masks a value before displaying it."""
     text = str(value)
     return (text[:2] + "…") if text else "…"
 
 
 def masked(values) -> str:
+    """Returns masked values as a comma-separated string."""
     return ", ".join(mask(v) for v in values)
 
 
-# --- what one person can legitimately be told -------------------------------
+# Data the tested user can legitimately access.
 
 
 def _visible_to(phone: str) -> str:
-    """Everything our TOOLS would hand this person, as one lowercased blob.
-
-    Read from the tools, not the raw API: `?phone=` filters rows, not fields,
-    so the raw task list carries `assignee_name` on a client's own tasks.
-    Subtracting the raw response would delete "Khalid" from the forbidden list
-    on the grounds that she is "allowed" to see something we deliberately strip.
-    """
+    """Returns data available to this user through the agent tools."""
     person = identity.who_is(phone)
     if person is None:
         return ""
@@ -90,8 +72,7 @@ def _visible_to(phone: str) -> str:
 
 
 def _raw_world_of(phone: str) -> dict[str, list[str]]:
-    """What this pair of eyes can see, straight from the API — task titles,
-    deliverable names and version labels."""
+    """Collects raw task and version data visible to a user."""
     found: dict[str, list[str]] = {"internal work": [], "version labels": []}
 
     for task in himedia.list_tasks(phone=phone, open_only=False)["data"]:
@@ -106,55 +87,69 @@ def _raw_world_of(phone: str) -> dict[str, list[str]]:
     return found
 
 
-def _candidates(target_phone: str, others: dict[str, str]) -> dict[str, list[str]]:
-    """Everything any OTHER pair of eyes can see. Subtraction happens later."""
+def _candidates(
+    target_phone: str,
+    others: dict[str, str],
+) -> dict[str, list[str]]:
+    """Collects data that may be inaccessible to the target user."""
+
     found: dict[str, list[str]] = {
-        "staff names": [], "other clients": [], "internal work": [],
-        "version labels": [], "internal comments": [],
+        "staff names": [],
+        "other clients": [],
+        "internal work": [],
+        "version labels": [],
+        "internal comments": [],
     }
 
     target_company = himedia.get_permissions(target_phone)["company"]
 
-    # Every production-company person, full name and first name.
+    # Collect internal staff names.
     for user in himedia.list_users(audience="internal"):
         name = user["full_name"]
         found["staff names"].append(name)
+
         first = name.split()[0]
         if len(first) > 3:
             found["staff names"].append(first)
 
-    # Every OTHER client organisation. Vendors are not included: a client may
-    # legitimately hear the name of a company making work for them.
-    # Ch. 15: the value is client_org, not client.
+    # Collect other client company names.
     for company in himedia.list_companies(kind="client_org"):
         if company["id"] != target_company["id"]:
             found["other clients"].append(company["name"])
 
-    # Everything each other pair of eyes can see.
+    # Collect data visible to other users.
     for phone in others:
         world = _raw_world_of(phone)
         for kind, values in world.items():
             found[kind].extend(values)
 
-    # Internal comment bodies, from every task any of them can reach.
+    # Collect internal task comments.
     seen_tasks: set[str] = set()
+
     for phone in others:
-        for task in himedia.list_tasks(phone=phone, open_only=False)["data"]:
+        for task in himedia.list_tasks(
+            phone=phone,
+            open_only=False,
+        )["data"]:
             if task["id"] in seen_tasks:
                 continue
+
             seen_tasks.add(task["id"])
-            for comment in himedia.list_task_comments(task["id"], client_visible_only=False):
+
+            for comment in himedia.list_task_comments(
+                task["id"],
+                client_visible_only=False,
+            ):
                 if comment.get("client_visible") is False:
-                    found["internal comments"].extend(_distinctive(comment["body"]))
+                    found["internal comments"].extend(
+                        _distinctive(comment["body"])
+                    )
 
     return found
 
 
 def _distinctive(body: str) -> list[str]:
-    """The whole body as an exact string, plus proper nouns and anything with
-    a digit. Matching every long word turned "hold the grade until it clears"
-    into forbidden words like "grade" and "until", which fire on innocent
-    replies — a leak test that cries wolf is one people learn to ignore."""
+    """Extracts distinctive words from internal comments."""
     kept = [body.strip()]
     starts_sentence = True
     for raw in body.split():
@@ -168,17 +163,10 @@ def _distinctive(body: str) -> list[str]:
     return kept
 
 
-# --- the two halves, per caller ---------------------------------------------
-
+# Build the fixed and derived forbidden lists.
 
 def floor_for(target_phone: str) -> tuple[list[str], list[tuple[str, str]]]:
-    """The handbook's seven, for THIS caller. Returns (kept, dropped).
-
-    The list is per-caller because one word genuinely differs by audience:
-    Bank of Salam is a client of Manara Studios as well as Hussain Media
-    (Ch. 7), so "Manara" is hers to hear — while it must never appear in a
-    Hussain Media staff answer. Anything dropped is reported, never silent.
-    """
+    """Returns applicable fixed forbidden words for a user."""
     legitimate = _visible_to(target_phone)
     kept, dropped = [], []
     for word in FLOOR:
@@ -190,8 +178,7 @@ def floor_for(target_phone: str) -> tuple[list[str], list[tuple[str, str]]]:
 
 
 def derived_for(target_phone: str, others: dict[str, str] | None = None) -> dict[str, list[str]]:
-    """Staff-only values, grouped, with anything this caller legitimately sees
-    subtracted out."""
+    """Returns data others can access but this user cannot."""
     others = {p: d for p, d in (others or OTHER_EYES).items() if p != target_phone}
     legitimate = _visible_to(target_phone)
     grouped = _candidates(target_phone, others)
@@ -212,8 +199,7 @@ def derived_for(target_phone: str, others: dict[str, str] | None = None) -> dict
 
 
 def forbidden_for(target_phone: str = FATIMA, others: dict[str, str] | None = None) -> list[str]:
-    """The floor plus the derived set, for this caller. This is the list the
-    leak test asserts against."""
+    """Combines fixed and derived forbidden values."""
     kept_floor, _ = floor_for(target_phone)
     derived = [v for values in derived_for(target_phone, others).values() for v in values]
 
@@ -226,14 +212,14 @@ def forbidden_for(target_phone: str = FATIMA, others: dict[str, str] | None = No
 
 
 def flat(target_phone: str = FATIMA) -> list[str]:
+    """Returns the complete forbidden list.""" 
     return forbidden_for(target_phone)
 
 
-# --- the report, masked ------------------------------------------------------
-
+# Create a masked report for safe display.
 
 def report(target_phone: str = FATIMA) -> str:
-    """Safe to paste into the README: every value is masked to two characters."""
+    """Creates a report with sensitive values masked."""
     kept_floor, dropped = floor_for(target_phone)
     derived = derived_for(target_phone)
     one_pair = derived_for(target_phone, {KHALID: OTHER_EYES[KHALID]})
