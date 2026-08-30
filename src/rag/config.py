@@ -32,5 +32,5 @@ GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 CHAT_MODEL = os.getenv(
     "RAG_CHAT_MODEL",
-    "gemini-2.0-flash" if GEMINI_API_KEY else "gpt-4o-mini",
+    "gemini-3.6-flash" if GEMINI_API_KEY else "gpt-4o-mini",
 )

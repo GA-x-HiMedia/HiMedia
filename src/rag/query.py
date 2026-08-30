@@ -53,6 +53,7 @@ def build_prompt(question: str, chunks: List[Document]) -> str:
 
     return f"Context:\n{context}\n\nQuestion: {question}\nAnswer:"
 
+
 def _get_client() -> OpenAI:
     """Gemini first (our placeholder provider), OpenAI as the fallback."""
     if config.GEMINI_API_KEY:
