@@ -16,7 +16,6 @@ CACHE_SECONDS = 60
 
 
 def tidy(raw: str) -> str:
-    def tidy(raw: str) -> str:
     """Normalizes a phone number."""
     v = raw.strip()
     if v.lower().startswith("whatsapp:"):

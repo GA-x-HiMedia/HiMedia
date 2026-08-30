@@ -601,7 +601,7 @@ def find_tool(name: str, available: list[dict]) -> dict | None:
 
 def describe(tool_name: str, args: dict) -> str:
 
-    """Creates a readable preview of a pending action."""
+    """Creates a readable preview of a pending action.
     person before anything actually happens."""
     if tool_name == "create_task":
         return (f"Create task \u201c{args.get('title', '')}\u201d "
