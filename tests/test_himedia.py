@@ -1,3 +1,8 @@
+"""
+HiMedia API client tests. Checks GET, POST, and PATCH requests, parameter
+and JSON handling, successful responses, and API error handling. Uses
+mocked HTTP requests, so no real network call is made.
+"""
 import pytest
 import httpx
 

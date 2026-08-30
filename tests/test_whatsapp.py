@@ -1,3 +1,9 @@
+"""
+WhatsApp webhook tests. Checks webhook verification, incoming message
+handling, background processing, outgoing WhatsApp requests, and unknown
+user handling. External HTTP calls are mocked, so no real WhatsApp API
+request is made.
+"""
 from fastapi.testclient import TestClient
 
 from agent import whatsapp
@@ -12,7 +18,7 @@ def test_verify_whatsapp_success(monkeypatch):
         "WHATSAPP_VERIFY_TOKEN",
         "test_token",
     )
-
+    
     response = client.get(
         "/whatsapp",
         params={

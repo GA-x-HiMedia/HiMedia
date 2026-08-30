@@ -1,6 +1,7 @@
 """
-Pure-logic tests for phone normalization (Chapter 24's `tidy`). No network
-call — run these anytime with plain `pytest`.
+Identity tests. Checks that WhatsApp phone numbers are normalized
+correctly across different formats before they are used to identify
+a person. No network call.
 """
 from agent.identity import tidy
 
