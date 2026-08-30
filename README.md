@@ -55,7 +55,7 @@ people, and each one gets a correctly different answer.
 python -m agent.cli
 ```
 
-Five read-only tools, filtered per caller's live permissions:
+Six read-only tools, filtered per caller's live permissions:
 
 | Tool | Needs |
 |---|---|
@@ -76,10 +76,11 @@ the caller's own audience — see `QUESTIONS.md`.
 the leak test runs clean as a client account. **This gate carries 30% of
 the grade.**
 
-Four write tools, added to the same catalogue:
+Five write tools, added to the same catalogue:
 
 | Tool | Needs | Audience |
 |---|---|---|
+| `create_task` | `tasks:write` | internal |
 | `update_task_status` | `tasks:write` | internal |
 | `comment_on_task` | `tasks:write` | internal |
 | `comment_on_version` | `reviews:write` | both |
@@ -118,6 +119,7 @@ deleting something this API offers.
 | `update_task_status` → `todo`/`in_progress`/`in_review`/`done` | no | internal, and reversible |
 | `comment_on_task` (internal) | no | cheap to get wrong, cheap to correct |
 | `comment_on_version` | no | highest-frequency write; only *adds* information |
+| `create_task` | no | adds internal work only; a mistake is answered by cancelling it |
 
 The phrase is one constant, `brain.CONFIRM_PHRASE`, used both by the check and
 by the message that asks for it. Write tools must declare which side of the
@@ -332,7 +334,7 @@ RUN_LIVE_TESTS=1 pytest -v -s    # + live tests against the real sandbox/model
 | File | What it covers | Needs network? |
 |---|---|---|
 | `test_identity.py` | phone normalization | no |
-| `test_tools_filtering.py` | catalogue filtering, all 10 tools, fabricated permission payloads | no |
+| `test_tools_filtering.py` | catalogue filtering, all 11 tools, fabricated permission payloads | no |
 | `test_confirmation_flow.py` | hold/confirm/cancel logic, stubbed tool (no real write) | no |
 | `test_leak_regressions.py` | one test per leak fixed, against a fake sandbox | no |
 | `test_exact_phrase_confirmation.py` | the exact-phrase gate on `decide_version` | no |
@@ -419,7 +421,7 @@ agent/
   demo.py        # scripted Phase 1+2 walkthrough
 tests/
   test_identity.py            # pure logic
-  test_tools_filtering.py      # pure logic — all 10 tools
+  test_tools_filtering.py      # pure logic — all 11 tools
   test_confirmation_flow.py     # pure logic — hold/confirm/cancel
   test_correctness_live.py       # real API + real model
   test_leak_live.py               # real API + real model — the 30% gate

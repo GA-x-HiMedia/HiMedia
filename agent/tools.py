@@ -1,9 +1,8 @@
 """
-The tool catalogue (Chapters 25-26). Ten tools: identity, plus read/write
-pairs across tasks, projects, and reviews/versions. (The README's Phase 2/3
-tables list nine — get_task_notes is the tenth, restored from an earlier
-branch of this work because nothing else reads task comments, which is where
-`client_visible: false` internal discussion lives.)
+The tool catalogue (Chapters 25-26). Eleven tools: identity, plus read/write
+pairs across tasks, projects, and reviews/versions. `get_task_notes` is the
+only one that reads task comments, which is where `client_visible: false`
+internal discussion lives.
 
 Filtering here (`tools_for`) is a convenience, not a lock — it stops the
 model wasting a turn or claiming a capability it doesn't have. The real
@@ -15,8 +14,9 @@ their approval_rank is too low for that review stage (Chapter 10 — rank
 is separate from read/write scope) — the check below controls what gets
 OFFERED, never what the API ultimately PERMITS.
 
-Phase 3 adds the four write tools (update_task_status, comment_on_task,
-comment_on_version, decide_version) and their `describe()` previews.
+Phase 3 adds the five write tools (create_task, update_task_status,
+comment_on_task, comment_on_version, decide_version) and their `describe()`
+previews.
 Every write tool is caught by brain.py's confirm-before-write flow — none
 of them ever run on the first ask.
 """
@@ -55,6 +55,10 @@ def _visible_task_ids(person: dict) -> set[str]:
 
 def _visible_version_ids(person: dict) -> set[str]:
     return {v["id"] for v in himedia.list_versions(phone=phone_of(person))}
+
+
+def _visible_project_ids(person: dict) -> set[str]:
+    return {p["id"] for p in himedia.list_projects(phone=phone_of(person))}
 
 
 def _speaker(comment: dict, client: bool) -> str:
@@ -188,6 +192,37 @@ def run_get_task_notes(person: dict, args: dict) -> dict:
 # path — never directly from the first model tool_call.
 
 
+def run_create_task(person: dict, args: dict) -> dict:
+    """Create a task in a project this caller can actually see.
+
+    The project is gated exactly like every other write here: the API does not
+    check company on a write, so without this a staff member could file a task
+    into another company's project just by naming its id.
+
+    Deliberately narrow. The model may set a title, a project, a priority, a
+    due date and a description. It may NOT set `status` or `client_visible`,
+    which the endpoint would accept: either one reaches the client the moment
+    the task exists, and that is not something to do on a first ask. Making a
+    task client-facing stays the job of update_task_status, which has its own
+    point-of-no-return gate.
+    """
+    project_id = args["project_id"]
+    if project_id not in _visible_project_ids(person):
+        return NOT_YOURS
+
+    task = himedia.create_task(
+        title=args["title"],
+        project_id=project_id,
+        description=args.get("description"),
+        priority=args.get("priority"),
+        due_on=args.get("due_on"),
+    )
+    return {
+        "id": task["id"], "title": task["title"],
+        "status": task.get("status"), "project": task.get("project_name"),
+    }
+
+
 def run_update_task_status(person: dict, args: dict) -> dict:
     task_id = args["task_id"]
     if task_id not in _visible_task_ids(person):
@@ -255,9 +290,12 @@ def run_decide_version(person: dict, args: dict) -> dict:
 # not extra safety — people who are asked to retype a phrase ten times a day
 # stop reading it, and then it protects nothing.
 #
-# Note this sandbox has no delete endpoint of any kind: the entire write
-# surface is PATCH /v1/tasks/{id} and three POSTs. "Cancelled" is the closest
-# thing to destroying work that exists here.
+# Note nothing the agent can do deletes anything: its whole write surface is
+# PATCH /v1/tasks/{id} and three POSTs, and the API offers no way to delete a
+# task or a version at any level. (It does expose DELETE /v1/users/{id}, which
+# this agent neither offers nor calls — checked against the API's own schema.)
+# So "cancelled" is the nearest thing to destroying work that any of these
+# actions can reach.
 
 POINT_OF_NO_RETURN_STATUSES = {
     "client_review",   # the client can now see it; you cannot un-send it
@@ -343,6 +381,44 @@ ALL_TOOLS: list[dict] = [
         "audience": "both",
         "writes": False,
         "run": run_list_tasks,
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "create_task",
+            "description": (
+                "Create a new task in a project. project_id must come from a prior "
+                "list_projects result, never invented. The task is created as internal "
+                "production work — if the client should see it, use update_task_status "
+                "afterwards. Requires confirmation before it runs."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "minLength": 1, "maxLength": 200},
+                    "project_id": {
+                        "type": "string",
+                        "description": "e.g. prj_0001 — from a prior list_projects result.",
+                    },
+                    "description": {"type": "string", "maxLength": 4000},
+                    "priority": {
+                        "type": "string",
+                        "enum": ["none", "low", "medium", "high", "urgent"],
+                    },
+                    "due_on": {"type": "string", "description": "YYYY-MM-DD."},
+                },
+                "required": ["title", "project_id"],
+                "additionalProperties": False,
+            },
+        },
+        "needs": ("tasks", "write"),
+        "audience": "internal",
+        "writes": True,
+        # Only adds work, and adds it internally: no client can see it, and a
+        # task filed by mistake is answered by cancelling it. Not a point of no
+        # return, so it keeps the ordinary yes/no.
+        "destructive": False,
+        "run": run_create_task,
     },
     {
         "type": "function",
@@ -612,6 +688,9 @@ def find_tool(name: str, available: list[dict]) -> dict | None:
 def describe(tool_name: str, args: dict) -> str:
     """One-line, human-readable preview of a pending write, shown to the
     person before anything actually happens."""
+    if tool_name == "create_task":
+        return (f"Create task \u201c{args.get('title', '')}\u201d "
+                f"in project {args.get('project_id')}")
     if tool_name == "update_task_status":
         return f"Move task {args.get('task_id')} to '{args.get('status')}'"
     if tool_name == "comment_on_task":
