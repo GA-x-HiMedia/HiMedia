@@ -1,0 +1,452 @@
+[
+  {
+    "id": "prj_001",
+    "name": "Integrated modular adapter",
+    "client_name": "Landry PLC",
+    "archived": false
+  },
+  {
+    "id": "prj_002",
+    "name": "Persevering disintermediate data-warehouse",
+    "client_name": "Gomez, Williams and Simpson",
+    "archived": true
+  },
+  {
+    "id": "prj_003",
+    "name": "Streamlined systematic leverage",
+    "client_name": "Herrera-Boone",
+    "archived": false
+  },
+  {
+    "id": "prj_004",
+    "name": "Optional client-driven firmware",
+    "client_name": "Diaz, Powell and Williams",
+    "archived": false
+  },
+  {
+    "id": "prj_005",
+    "name": "Business-focused non-volatile open architecture",
+    "client_name": "Cox LLC",
+    "archived": true
+  },
+  {
+    "id": "prj_006",
+    "name": "Compatible human-resource middleware",
+    "client_name": "Duran-Ramirez",
+    "archived": false
+  },
+  {
+    "id": "prj_007",
+    "name": "Secured systemic pricing structure",
+    "client_name": "Anderson Inc",
+    "archived": false
+  },
+  {
+    "id": "prj_008",
+    "name": "Object-based holistic utilization",
+    "client_name": "Grant-Diaz",
+    "archived": false
+  },
+  {
+    "id": "prj_009",
+    "name": "Digitized dedicated portal",
+    "client_name": "Morales, Williams and Williams",
+    "archived": true
+  },
+  {
+    "id": "prj_010",
+    "name": "Universal full-range website",
+    "client_name": "Stone-Hernandez",
+    "archived": false
+  },
+  {
+    "id": "prj_011",
+    "name": "Profound client-driven Graphic Interface",
+    "client_name": "Flores, Long and Jensen",
+    "archived": false
+  },
+  {
+    "id": "prj_012",
+    "name": "Innovative optimizing Graphical User Interface",
+    "client_name": "Clayton, Patel and Erickson",
+    "archived": false
+  },
+  {
+    "id": "prj_013",
+    "name": "Innovative methodical adapter",
+    "client_name": "Rivera-Rodriguez",
+    "archived": false
+  },
+  {
+    "id": "prj_014",
+    "name": "Operative optimal function",
+    "client_name": "Wiggins, Soto and Carlson",
+    "archived": false
+  },
+  {
+    "id": "prj_015",
+    "name": "Fundamental solution-oriented toolset",
+    "client_name": "Lane, Griffith and Silva",
+    "archived": false
+  },
+  {
+    "id": "prj_016",
+    "name": "Down-sized multi-tasking product",
+    "client_name": "Harvey, Randall and Hernandez",
+    "archived": false
+  },
+  {
+    "id": "prj_017",
+    "name": "Synergized dynamic alliance",
+    "client_name": "Vaughan, Rodriguez and Smith",
+    "archived": false
+  },
+  {
+    "id": "prj_018",
+    "name": "Intuitive intangible collaboration",
+    "client_name": "Vaughn-Jenkins",
+    "archived": false
+  },
+  {
+    "id": "prj_019",
+    "name": "Vision-oriented reciprocal leverage",
+    "client_name": "Luna, Thornton and Stone",
+    "archived": true
+  },
+  {
+    "id": "prj_020",
+    "name": "Realigned fresh-thinking protocol",
+    "client_name": "Fox-Edwards",
+    "archived": false
+  },
+  {
+    "id": "prj_021",
+    "name": "Enhanced logistical monitoring",
+    "client_name": "Payne-Lowe",
+    "archived": false
+  },
+  {
+    "id": "prj_022",
+    "name": "Up-sized systemic project",
+    "client_name": "Baker, Washington and Bernard",
+    "archived": false
+  },
+  {
+    "id": "prj_023",
+    "name": "Grass-roots next generation framework",
+    "client_name": "David LLC",
+    "archived": false
+  },
+  {
+    "id": "prj_024",
+    "name": "Visionary executive strategy",
+    "client_name": "Vaughn Group",
+    "archived": false
+  },
+  {
+    "id": "prj_025",
+    "name": "Intuitive mission-critical hardware",
+    "client_name": "Peck, Pope and Hill",
+    "archived": false
+  },
+  {
+    "id": "prj_026",
+    "name": "Decentralized object-oriented service-desk",
+    "client_name": "James, Baird and Cardenas",
+    "archived": false
+  },
+  {
+    "id": "prj_027",
+    "name": "Visionary client-server frame",
+    "client_name": "Roberts Ltd",
+    "archived": false
+  },
+  {
+    "id": "prj_028",
+    "name": "Configurable grid-enabled intranet",
+    "client_name": "Scott, Mendoza and Harris",
+    "archived": false
+  },
+  {
+    "id": "prj_029",
+    "name": "Public-key encompassing open architecture",
+    "client_name": "Nelson, Rodriguez and Yang",
+    "archived": true
+  },
+  {
+    "id": "prj_030",
+    "name": "Front-line dynamic application",
+    "client_name": "Stein, Perez and Hall",
+    "archived": false
+  },
+  {
+    "id": "prj_031",
+    "name": "Cross-platform incremental groupware",
+    "client_name": "Kennedy, Maldonado and Taylor",
+    "archived": false
+  },
+  {
+    "id": "prj_032",
+    "name": "Reactive cohesive installation",
+    "client_name": "Donovan, Johns and Woods",
+    "archived": false
+  },
+  {
+    "id": "prj_033",
+    "name": "Exclusive web-enabled forecast",
+    "client_name": "Mitchell-Brown",
+    "archived": false
+  },
+  {
+    "id": "prj_034",
+    "name": "Visionary background projection",
+    "client_name": "Hall, Rodgers and Jefferson",
+    "archived": false
+  },
+  {
+    "id": "prj_035",
+    "name": "Automated context-sensitive instruction set",
+    "client_name": "Peck Inc",
+    "archived": false
+  },
+  {
+    "id": "prj_036",
+    "name": "Object-based zero tolerance methodology",
+    "client_name": "Zuniga LLC",
+    "archived": false
+  },
+  {
+    "id": "prj_037",
+    "name": "Automated 24/7 framework",
+    "client_name": "Morrison, Hebert and Rogers",
+    "archived": false
+  },
+  {
+    "id": "prj_038",
+    "name": "Persevering secondary moratorium",
+    "client_name": "Snyder, Mays and Rosales",
+    "archived": false
+  },
+  {
+    "id": "prj_039",
+    "name": "Persistent encompassing core",
+    "client_name": "Rivera Ltd",
+    "archived": false
+  },
+  {
+    "id": "prj_040",
+    "name": "Persevering secondary extranet",
+    "client_name": "Lopez, Doyle and Gibbs",
+    "archived": false
+  },
+  {
+    "id": "prj_041",
+    "name": "Re-contextualized systematic system engine",
+    "client_name": "Thompson Ltd",
+    "archived": false
+  },
+  {
+    "id": "prj_042",
+    "name": "Open-architected interactive migration",
+    "client_name": "Miller-Caldwell",
+    "archived": false
+  },
+  {
+    "id": "prj_043",
+    "name": "Enterprise-wide client-driven matrices",
+    "client_name": "Boyle-Smith",
+    "archived": false
+  },
+  {
+    "id": "prj_044",
+    "name": "Networked disintermediate knowledge user",
+    "client_name": "Finley-Turner",
+    "archived": true
+  },
+  {
+    "id": "prj_045",
+    "name": "Up-sized object-oriented access",
+    "client_name": "Valdez-Schwartz",
+    "archived": false
+  },
+  {
+    "id": "prj_046",
+    "name": "Centralized static capability",
+    "client_name": "Parker-Sullivan",
+    "archived": false
+  },
+  {
+    "id": "prj_047",
+    "name": "Profit-focused tertiary throughput",
+    "client_name": "Vaughn-Fowler",
+    "archived": false
+  },
+  {
+    "id": "prj_048",
+    "name": "Implemented holistic pricing structure",
+    "client_name": "Robinson and Sons",
+    "archived": false
+  },
+  {
+    "id": "prj_049",
+    "name": "Polarized coherent knowledgebase",
+    "client_name": "Zhang, Brooks and Miles",
+    "archived": false
+  },
+  {
+    "id": "prj_050",
+    "name": "Phased web-enabled monitoring",
+    "client_name": "Petersen, Gill and Becker",
+    "archived": true
+  },
+  {
+    "id": "prj_051",
+    "name": "Right-sized zero tolerance artificial intelligence",
+    "client_name": "Griffin, Padilla and Miller",
+    "archived": false
+  },
+  {
+    "id": "prj_052",
+    "name": "Re-contextualized bifurcated approach",
+    "client_name": "Leach, Harris and Herrera",
+    "archived": false
+  },
+  {
+    "id": "prj_053",
+    "name": "Down-sized fresh-thinking model",
+    "client_name": "Wilson-Harris",
+    "archived": false
+  },
+  {
+    "id": "prj_054",
+    "name": "Reduced mobile array",
+    "client_name": "Griffin, Brown and Anderson",
+    "archived": false
+  },
+  {
+    "id": "prj_055",
+    "name": "Operative logistical open system",
+    "client_name": "Hansen Ltd",
+    "archived": false
+  },
+  {
+    "id": "prj_056",
+    "name": "Integrated uniform adapter",
+    "client_name": "Scott-Smith",
+    "archived": false
+  },
+  {
+    "id": "prj_057",
+    "name": "Extended optimal archive",
+    "client_name": "Henderson Ltd",
+    "archived": false
+  },
+  {
+    "id": "prj_058",
+    "name": "Cloned needs-based approach",
+    "client_name": "Andersen Group",
+    "archived": false
+  },
+  {
+    "id": "prj_059",
+    "name": "Automated executive installation",
+    "client_name": "Mack Ltd",
+    "archived": false
+  },
+  {
+    "id": "prj_060",
+    "name": "Upgradable secondary instruction set",
+    "client_name": "Haney-Reyes",
+    "archived": false
+  },
+  {
+    "id": "prj_061",
+    "name": "Multi-tiered homogeneous artificial intelligence",
+    "client_name": "Brandt, Baxter and Anderson",
+    "archived": false
+  },
+  {
+    "id": "prj_062",
+    "name": "Monitored bottom-line conglomeration",
+    "client_name": "Long, Anderson and Irwin",
+    "archived": false
+  },
+  {
+    "id": "prj_063",
+    "name": "Adaptive web-enabled adapter",
+    "client_name": "Ford-Ball",
+    "archived": false
+  },
+  {
+    "id": "prj_064",
+    "name": "Optimized national implementation",
+    "client_name": "Wright LLC",
+    "archived": false
+  },
+  {
+    "id": "prj_065",
+    "name": "Distributed even-keeled core",
+    "client_name": "Cannon, Johnson and Keller",
+    "archived": false
+  },
+  {
+    "id": "prj_066",
+    "name": "Seamless zero administration adapter",
+    "client_name": "Harris Inc",
+    "archived": false
+  },
+  {
+    "id": "prj_067",
+    "name": "Right-sized 5thgeneration knowledge user",
+    "client_name": "Powers, Brennan and Sanchez",
+    "archived": false
+  },
+  {
+    "id": "prj_068",
+    "name": "Balanced impactful intranet",
+    "client_name": "Fernandez Inc",
+    "archived": false
+  },
+  {
+    "id": "prj_069",
+    "name": "Devolved motivating frame",
+    "client_name": "Cabrera Ltd",
+    "archived": false
+  },
+  {
+    "id": "prj_070",
+    "name": "Re-engineered foreground orchestration",
+    "client_name": "Barton, Cardenas and Young",
+    "archived": false
+  },
+  {
+    "id": "prj_071",
+    "name": "Digitized stable model",
+    "client_name": "Gutierrez LLC",
+    "archived": false
+  },
+  {
+    "id": "prj_072",
+    "name": "Centralized next generation parallelism",
+    "client_name": "Buck, Garrett and Simmons",
+    "archived": false
+  },
+  {
+    "id": "prj_073",
+    "name": "Proactive actuating hardware",
+    "client_name": "Powers, Floyd and Flores",
+    "archived": false
+  },
+  {
+    "id": "prj_074",
+    "name": "Operative incremental collaboration",
+    "client_name": "Bennett-Webster",
+    "archived": false
+  },
+  {
+    "id": "prj_075",
+    "name": "Phased disintermediate definition",
+    "client_name": "Mathews-Thomas",
+    "archived": false
+  }
+]
