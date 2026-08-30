@@ -7,8 +7,9 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+.env/
 
-.env
+vectorstore/
 
-# Audit logs
-audit.log
+scr/
+data/
