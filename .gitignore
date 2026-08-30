@@ -16,3 +16,7 @@ data/
 
 __pycache__/
 vectorstore/
+
+# Secrets. main's .gitignore only had `.env/` (a directory), which does not
+# match the `.env` FILE holding HIMEDIA_API_KEY and GEMINI_API_KEY.
+.env
