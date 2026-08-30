@@ -1,26 +1,22 @@
-"""
-Turn a raw phone number into a person the rest of the agent can reason
-about. Nothing else happens until this succeeds (Chapter 24).
+"""Handles user identity, permissions, and device verification."""
 
-A phone number is not proof of identity — sender IDs can be spoofed, SIMs
-get swapped. A production version of this agent would email a one-time
-code the first time it sees a new device before trusting the number. That
-is explicitly not required for this capstone (see README's "what is not
-finished" section) — but the sandbox lookup here is what stands in for it.
-"""
 from __future__ import annotations
 
+import logging
 import re
+import secrets
 import time
 
-from . import himedia
+from . import audit, himedia
 
-_cache: dict[str, tuple[dict, float]] = {}  # phone -> (person, fetched_at)
+logger = logging.getLogger(__name__)
+
+_cache: dict[str, tuple[dict, float]] = {}  # Cached identity lookups.
 CACHE_SECONDS = 60
 
 
 def tidy(raw: str) -> str:
-    """whatsapp:+973 3300 0003 -> +97333000003"""
+    """Normalizes a phone number."""
     v = raw.strip()
     if v.lower().startswith("whatsapp:"):
         v = v[9:].strip()
@@ -33,28 +29,205 @@ def tidy(raw: str) -> str:
 
 
 def who_is(raw_phone: str) -> dict | None:
-    """The person behind this number, or None if HiMedia doesn't know them."""
+    """Returns the person linked to this phone number."""
     phone = tidy(raw_phone)
     hit = _cache.get(phone)
     if hit and time.time() - hit[1] < CACHE_SECONDS:
+        audit.log_stage(phone=phone, stage="identity.who_is", duration_ms=0.0,
+                        detail="cache hit")
         return hit[0]
 
-    try:
-        person = himedia.get("/v1/permissions/by-phone", phone=phone)
-    except himedia.ApiRefused as e:
-        if e.code == "USER_NOT_FOUND":
-            return None
-        raise
+    with audit.Timer() as t:
+        try:
+            person = himedia.get_permissions(phone)
+        except himedia.ApiRefused as e:
+            if e.code == "USER_NOT_FOUND":
+                audit.log_stage(phone=phone, stage="identity.who_is",
+                                duration_ms=t_elapsed(t), detail="unknown number")
+                return None
+            raise
 
+    audit.log_stage(phone=phone, stage="identity.who_is", duration_ms=t.elapsed_ms,
+                    detail="live fetch")
     _cache[phone] = (person, time.time())
     return person
 
 
+def t_elapsed(timer) -> float:
+    """Returns elapsed time safely."""
+    return getattr(timer, "elapsed_ms", 0.0)
+
+
 def allowed(person: dict, module: str, level: str = "read") -> bool:
-    """Does this person hold at least `level` on `module`? Read straight off
-    their LIVE permissions map (from the API response) — never from a table
-    we maintain ourselves. Write always includes read."""
-    granted = person["permissions"].get(module)
+    """Checks whether a user has the required permission."""
+    if person.get("role", {}).get("is_owner"):
+        return True
+
+    granted = person.get("permissions", {}).get(module)  # missing means "none"
     if granted == "write":
         return True
     return granted == "read" and level == "read"
+
+
+def is_client(person: dict) -> bool:
+    """Returns whether the user is a client."""
+    return person.get("audience") == "client"
+
+
+def phone_of(person: dict) -> str:
+    """Returns the verified phone number from the user's identity."""
+    return person["user"]["phone"]
+
+
+def forget(raw_phone: str | None = None) -> None:
+    """Clears cached identity data."""
+    if raw_phone is None:
+        _cache.clear()
+    else:
+        _cache.pop(tidy(raw_phone), None)
+
+
+_colleagues: dict[tuple[str, str, str], tuple[list[str], float]] = {}
+
+
+def colleagues_who_can(person: dict, module: str, level: str = "write") -> list[str]:
+    """Finds colleagues with the required permission."""
+    company_id = person["company"]["id"]
+    key = (company_id, module, level)
+
+    hit = _colleagues.get(key)
+    if hit and time.time() - hit[1] < CACHE_SECONDS:
+        return hit[0]
+
+    roles = {role["key"]: role for role in himedia.list_roles()}
+    names = []
+    for user in himedia.list_users(company_id=company_id):
+        if user["id"] == person["user"]["id"] or not user.get("is_active", True):
+            continue
+        role = roles.get(user.get("role_key"), {})
+        pretend = {"role": role, "permissions": role.get("permissions", {})}
+        if allowed(pretend, module, level):
+            names.append(user["full_name"])
+
+    _colleagues[key] = (names, time.time())
+    return names
+
+
+def describe(person: dict) -> str:
+    """Returns a short description of the user."""
+    user = person["user"]
+    return (
+        f"{user['full_name']} · {person['role']['key']} · "
+        f"{person['company']['name']} · {person['audience']}"
+    )
+
+
+# Reply used when the phone number is not recognized.
+UNKNOWN_NUMBER_REPLY = (
+    "ما لقيت رقمك في نظام HiMedia. "
+    "كلّم مسؤول الحساب عندكم عشان يضيفك.\n"
+    "I could not find your number in the HiMedia system. "
+    "Please ask your account administrator to add you."
+)
+
+
+# First-device verification.
+
+_verified_devices: set[str] = set()
+_pending_codes: dict[str, tuple[str, float]] = {}
+
+CODE_SECONDS = 10 * 60
+
+
+def is_trusted_device(raw_phone: str) -> bool:
+    """Checks whether the device has been verified."""
+    return tidy(raw_phone) in _verified_devices
+
+
+def begin_verification(raw_phone: str) -> str:
+    """Creates a new verification code."""   
+    phone = tidy(raw_phone)
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    _pending_codes[phone] = (code, time.time())
+    # Do not store verification codes in the audit log.
+    audit.log_stage(phone=phone, stage="identity.verification",
+                    duration_ms=0.0, detail="code issued")
+    logger.warning("Verification code for %s: %s (deliver out of band)", phone, code)
+    return code
+
+
+def submit_code(raw_phone: str, submitted: str) -> bool:
+    """Verifies a submitted code and trusts the device if valid."""
+    phone = tidy(raw_phone)
+    held = _pending_codes.get(phone)
+    if held is None:
+        return False
+
+    code, issued_at = held
+    if time.time() - issued_at > CODE_SECONDS:
+        del _pending_codes[phone]
+        return False
+
+    if not secrets.compare_digest(submitted.strip(), code):
+        return False
+
+    del _pending_codes[phone]
+    _verified_devices.add(phone)
+    audit.log_stage(phone=phone, stage="identity.verification",
+                    duration_ms=0.0, detail="device verified")
+    return True
+
+
+def forget_device(raw_phone: str | None = None) -> None:
+    """Removes a device's verification status."""
+    if raw_phone is None:
+        _verified_devices.clear()
+        _pending_codes.clear()
+        return
+    phone = tidy(raw_phone)
+    _verified_devices.discard(phone)
+    _pending_codes.pop(phone, None)
+
+
+ASK_FOR_CODE = (
+    "أول مرة أشوف هذا الجهاز. أرسلت لك رمز تحقق من ستة أرقام — اكتبه هني عشان أكمل.\n"
+    "First time I've seen this device. I've sent you a six-digit verification "
+    "code — reply with it to continue."
+)
+
+WRONG_CODE = (
+    "الرمز مو صحيح أو انتهت صلاحيته. أرسلت لك رمز جديد.\n"
+    "That code was wrong or expired. I've sent a new one."
+)
+
+DEVICE_VERIFIED = (
+    "تم التحقق من جهازك. تفضل، شنو تحتاج؟\n"
+    "Device verified. What do you need?"
+)
+
+
+def device_gate(person: dict | None, raw_phone: str, message: str) -> str | None:
+    """Handles unknown users and first-device verification.
+
+    Returns None when normal processing can continue.
+    """
+    if person is None:
+        # Unknown users receive no system information.
+
+        return UNKNOWN_NUMBER_REPLY
+
+    if is_trusted_device(raw_phone):
+        return None
+
+    phone = tidy(raw_phone)
+
+    if phone in _pending_codes:
+        # Verify the submitted code.
+        if submit_code(phone, message):
+            return DEVICE_VERIFIED
+        begin_verification(phone)
+        return WRONG_CODE
+
+    # Start verification for a new device.
+    begin_verification(phone)
+    return ASK_FOR_CODE

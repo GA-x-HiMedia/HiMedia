@@ -1,28 +1,44 @@
-"""
-The tool catalogue (Chapters 25-26). Nine tools: identity, plus read/write
-pairs across tasks, projects, and reviews/versions.
+"""Defines the agent's tools and access controls."""
 
-Filtering here (`tools_for`) is a convenience, not a lock — it stops the
-model wasting a turn or claiming a capability it doesn't have. The real
-boundary is the sandbox API itself: every handler passes the CALLER'S OWN
-phone number, never one from `args`, and HiMedia decides what data comes
-back or whether a write is actually allowed. A caller can hold
-reviews:write scope and still get a clean 403 from decide_version if
-their approval_rank is too low for that review stage (Chapter 10 — rank
-is separate from read/write scope) — the check below controls what gets
-OFFERED, never what the API ultimately PERMITS.
-
-Phase 3 adds the four write tools (update_task_status, comment_on_task,
-comment_on_version, decide_version) and their `describe()` previews.
-Every write tool is caught by brain.py's confirm-before-write flow — none
-of them ever run on the first ask.
-"""
 from __future__ import annotations
 
 from . import himedia
-from .identity import allowed
+from .identity import allowed, is_client, phone_of
 
-# --- Read handlers ----------------------------------------------------------
+# Check whether the user can access a specific item.
+
+NOT_YOURS = {
+    "refused": "NOT_VISIBLE_TO_YOU",
+    "reason": (
+        "That item is not one this person can see. Do not describe it, guess "
+        "at it, or confirm that it exists."
+    ),
+}
+
+
+def _visible_task_ids(person: dict) -> set[str]:
+    """Returns task IDs visible to the user."""
+    tasks = himedia.list_tasks(phone=phone_of(person), open_only=False)["data"]
+    return {task["id"] for task in tasks}
+
+
+def _visible_version_ids(person: dict) -> set[str]:
+    """Returns version IDs visible to the user."""
+    return {v["id"] for v in himedia.list_versions(phone=phone_of(person))}
+
+
+def _visible_project_ids(person: dict) -> set[str]:
+    return {p["id"] for p in himedia.list_projects(phone=phone_of(person))}
+
+
+def _speaker(comment: dict, client: bool) -> str:
+    """Returns the appropriate speaker name for the user."""
+    if not client:
+        return comment.get("author_name")
+    return "your team" if comment.get("author_kind") == "client" else "the production team"
+
+
+# Read tools.
 
 
 def run_who_am_i(person: dict, args: dict) -> dict:
@@ -36,9 +52,8 @@ def run_who_am_i(person: dict, args: dict) -> dict:
 
 
 def run_list_tasks(person: dict, args: dict) -> list[dict]:
-    tasks = himedia.get(
-        "/v1/tasks",
-        phone=person["user"]["phone"],
+    tasks = himedia.list_tasks(
+        phone=phone_of(person),                  # never args
         status=args.get("status"),
         open_only=args.get("open_only", True),
     )["data"]
@@ -53,9 +68,7 @@ def run_list_tasks(person: dict, args: dict) -> list[dict]:
 
 
 def run_list_projects(person: dict, args: dict) -> list[dict]:
-    projects = himedia.get(
-        "/v1/projects", phone=person["user"]["phone"], status=args.get("status")
-    )["data"]
+    projects = himedia.list_projects(phone=phone_of(person), status=args.get("status"))
     return [
         {"id": p["id"], "name": p["name"], "status": p["status"], "due": p.get("due_on")}
         for p in projects
@@ -63,72 +76,191 @@ def run_list_projects(person: dict, args: dict) -> list[dict]:
 
 
 def run_list_versions(person: dict, args: dict) -> list[dict]:
-    versions = himedia.get(
-        "/v1/versions",
-        phone=person["user"]["phone"],
+    versions = himedia.list_versions(
+        phone=phone_of(person),                  # never args
         project_id=args.get("project_id"),
         state=args.get("state"),
-    )["data"]
-    return [
-        {
+    )
+    client = is_client(person)
+
+    rows = []
+    for v in versions:
+        row = {
             "id": v["id"], "version_no": v.get("version_no"), "state": v.get("state"),
-            "published_to_client": v.get("published_to_client"),
         }
-        for v in versions
-    ]
+        # published_to_client is always true in what a client gets back, so for
+        # them it is noise; for staff it is the difference between "the client
+        # is waiting on this" and "the client cannot see it".
+        if not client:
+            row["published_to_client"] = v.get("published_to_client")
+        rows.append(row)
+    return rows
 
 
-def run_get_review_notes(person: dict, args: dict) -> list[dict]:
-    notes = himedia.get(
-        f"/v1/versions/{args['version_id']}/comments",
-        unresolved_only=args.get("unresolved_only", False),
-    )["data"]
+def run_get_review_notes(person: dict, args: dict):
+    version_id = args["version_id"]
+    if version_id not in _visible_version_ids(person):
+        return NOT_YOURS
+
+    notes = himedia.list_version_comments(
+        version_id, unresolved_only=args.get("unresolved_only", False)
+    )
+    client = is_client(person)
+    if client:
+        # Hide explicitly internal comments from clients.
+        notes = [n for n in notes if n.get("client_visible") is not False]
     return [
         {
-            "author": n["author_name"], "body": n["body"],
+            "author": _speaker(n, client),
+            "body": n["body"],
             "at_seconds": n.get("timecode_seconds"), "resolved": n["resolved"],
         }
         for n in notes
     ]
 
 
-# --- Write handlers (Phase 3) -----------------------------------------------
-# Every one of these is only ever called from brain.py's confirmed-write
-# path — never directly from the first model tool_call.
+def run_get_task_notes(person: dict, args: dict) -> dict:
+    """Returns comments for a task visible to the user."""
+    task_id = args["task_id"]
+    if task_id not in _visible_task_ids(person):
+        return NOT_YOURS
+
+    client = is_client(person)
+    task = himedia.get_task(task_id)
+    comments = himedia.list_task_comments(task_id, client_visible_only=client)
+
+    return {
+        "title": task["title"],
+        "status": task["status"],
+        "project": task.get("project_name"),
+        "notes": [
+            {
+                "from": _speaker(c, client),
+                "body": c["body"],
+                "on": (c.get("created_at") or "")[:10],
+            }
+            for c in comments
+        ],
+    }
+
+
+# Write tools run only after confirmation.
+
+
+def run_create_task(person: dict, args: dict) -> dict:
+    """Create a task in a project this caller can actually see.
+
+    The project is gated exactly like every other write here: the API does not
+    check company on a write, so without this a staff member could file a task
+    into another company's project just by naming its id.
+
+    Deliberately narrow. The model may set a title, a project, a priority, a
+    due date and a description. It may NOT set `status` or `client_visible`,
+    which the endpoint would accept: either one reaches the client the moment
+    the task exists, and that is not something to do on a first ask. Making a
+    task client-facing stays the job of update_task_status, which has its own
+    point-of-no-return gate.
+    """
+    project_id = args["project_id"]
+    if project_id not in _visible_project_ids(person):
+        return NOT_YOURS
+
+    task = himedia.create_task(
+        title=args["title"],
+        project_id=project_id,
+        description=args.get("description"),
+        priority=args.get("priority"),
+        due_on=args.get("due_on"),
+    )
+    return {
+        "id": task["id"], "title": task["title"],
+        "status": task.get("status"), "project": task.get("project_name"),
+    }
 
 
 def run_update_task_status(person: dict, args: dict) -> dict:
-    task = himedia.patch(f"/v1/tasks/{args['task_id']}", {"status": args["status"]})
+    task_id = args["task_id"]
+    if task_id not in _visible_task_ids(person):
+        return NOT_YOURS
+
+    task = himedia.update_task(task_id, {"status": args["status"]})
     return {"id": task["id"], "title": task["title"], "status": task["status"]}
 
 
 def run_comment_on_task(person: dict, args: dict) -> dict:
-    body = {
-        "body": args["body"],
-        "author_phone": person["user"]["phone"],
-        "client_visible": args.get("client_visible", False),
-    }
-    himedia.post(f"/v1/tasks/{args['task_id']}/comments", body)
-    return {"posted": True, "task_id": args["task_id"]}
+    task_id = args["task_id"]
+    if task_id not in _visible_task_ids(person):
+        return NOT_YOURS
+
+    himedia.add_task_comment(
+        task_id,
+        body=args["body"],
+        author_phone=phone_of(person),           # never args
+        client_visible=args.get("client_visible", False),
+    )
+    return {"posted": True, "task_id": task_id}
 
 
 def run_comment_on_version(person: dict, args: dict) -> dict:
-    body = {"body": args["body"], "author_phone": person["user"]["phone"]}
-    if args.get("timecode_seconds") is not None:
-        body["timecode_seconds"] = args["timecode_seconds"]
-    himedia.post(f"/v1/versions/{args['version_id']}/comments", body)
-    return {"posted": True, "version_id": args["version_id"]}
+    version_id = args["version_id"]
+    if version_id not in _visible_version_ids(person):
+        return NOT_YOURS
+
+    himedia.add_version_comment(
+        version_id,
+        body=args["body"],
+        author_phone=phone_of(person),           # never args
+        timecode_seconds=args.get("timecode_seconds"),
+    )
+    return {"posted": True, "version_id": version_id}
 
 
 def run_decide_version(person: dict, args: dict) -> dict:
-    body = {"decision": args["decision"], "actor_phone": person["user"]["phone"]}
-    if args.get("note"):
-        body["note"] = args["note"]
-    himedia.post(f"/v1/versions/{args['version_id']}/decision", body)
-    return {"version_id": args["version_id"], "decision": args["decision"]}
+    version_id = args["version_id"]
+    # Verify that the version belongs to the user's visible data.
+    if version_id not in _visible_version_ids(person):
+        return NOT_YOURS
+
+    himedia.decide_version(
+        version_id,
+        decision=args["decision"],
+        actor_phone=phone_of(person),            # never args
+        note=args.get("note"),
+    )
+    return {"version_id": version_id, "decision": args["decision"]}
 
 
-# --- Catalogue ----------------------------------------------------------
+# Actions that require stronger confirmation.
+
+POINT_OF_NO_RETURN_STATUSES = {
+    "client_review",  # Makes the task visible to the client.
+    "cancelled",      # Cancels the task.
+}
+
+
+def _status_is_final(args: dict) -> bool:
+    return args.get("status") in POINT_OF_NO_RETURN_STATUSES
+
+
+def _comment_reaches_the_client(args: dict) -> bool:
+    """Checks whether a comment will be visible to the client."""
+    return bool(args.get("client_visible"))
+
+
+def is_destructive(tool_name: str, args: dict) -> bool:
+    """Checks whether an action needs stronger confirmation."""
+    tool = next((t for t in ALL_TOOLS if t["function"]["name"] == tool_name), None)
+    if tool is None:
+        return True
+    if not tool["writes"]:
+        return False
+
+    verdict = tool.get("destructive", True)
+    return bool(verdict(args)) if callable(verdict) else bool(verdict)
+
+
+# Tool catalogue.
+
 
 ALL_TOOLS: list[dict] = [
     {
@@ -182,6 +314,44 @@ ALL_TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
+            "name": "create_task",
+            "description": (
+                "Create a new task in a project. project_id must come from a prior "
+                "list_projects result, never invented. The task is created as internal "
+                "production work — if the client should see it, use update_task_status "
+                "afterwards. Requires confirmation before it runs."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "title": {"type": "string", "minLength": 1, "maxLength": 200},
+                    "project_id": {
+                        "type": "string",
+                        "description": "e.g. prj_0001 — from a prior list_projects result.",
+                    },
+                    "description": {"type": "string", "maxLength": 4000},
+                    "priority": {
+                        "type": "string",
+                        "enum": ["none", "low", "medium", "high", "urgent"],
+                    },
+                    "due_on": {"type": "string", "description": "YYYY-MM-DD."},
+                },
+                "required": ["title", "project_id"],
+                "additionalProperties": False,
+            },
+        },
+        "needs": ("tasks", "write"),
+        "audience": "internal",
+        "writes": True,
+        # Only adds work, and adds it internally: no client can see it, and a
+        # task filed by mistake is answered by cancelling it. Not a point of no
+        # return, so it keeps the ordinary yes/no.
+        "destructive": False,
+        "run": run_create_task,
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "update_task_status",
             "description": (
                 "Move a task to a new status. You will be asked to confirm with the "
@@ -205,6 +375,9 @@ ALL_TOOLS: list[dict] = [
         "needs": ("tasks", "write"),
         "audience": "internal",
         "writes": True,
+        # Harmless moving a task to todo or in_progress; a point of no return
+        # moving it to client_review (the client sees it) or cancelled.
+        "destructive": _status_is_final,
         "run": run_update_task_status,
     },
     {
@@ -230,7 +403,34 @@ ALL_TOOLS: list[dict] = [
         "needs": ("tasks", "write"),
         "audience": "internal",
         "writes": True,
+        # Stronger confirmation if the client can see the comment.
+        "destructive": _comment_reaches_the_client,
         "run": run_comment_on_task,
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_task_notes",
+            "description": (
+                "The conversation attached to one task — what was said about it and "
+                "when. Use after list_tasks for 'what did they say about it', 'has the "
+                "client replied', 'what changes were asked for'. task_id must come from "
+                "a prior list_tasks result, never invented. This returns notes on a "
+                "TASK; for feedback on a video version use get_review_notes instead."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task_id": {"type": "string", "description": "e.g. tsk_0002 — from a prior list_tasks result."},
+                },
+                "required": ["task_id"],
+                "additionalProperties": False,
+            },
+        },
+        "needs": ("tasks", "read"),
+        "audience": "both",
+        "writes": False,
+        "run": run_get_task_notes,
     },
     {
         "type": "function",
@@ -327,6 +527,8 @@ ALL_TOOLS: list[dict] = [
         "needs": ("reviews", "write"),
         "audience": "both",
         "writes": True,
+        # Version comments are reversible by adding another comment.
+        "destructive": False,
         "run": run_comment_on_version,
     },
     {
@@ -353,15 +555,15 @@ ALL_TOOLS: list[dict] = [
         "needs": ("reviews", "write"),
         "audience": "both",
         "writes": True,
+        # Always requires stronger confirmation.
+        "destructive": True,
         "run": run_decide_version,
     },
 ]
 
 
 def tools_for(person: dict) -> list[dict]:
-    """The tools this person may use, for this message (Chapter 26).
-    Mechanical, no per-tool special cases: offered iff the audience matches
-    and their LIVE permissions map satisfies what the tool needs."""
+    """Returns the tools available to the current user."""
     usable = []
     for tool in ALL_TOOLS:
         if tool["audience"] != "both" and tool["audience"] != person["audience"]:
@@ -374,22 +576,36 @@ def tools_for(person: dict) -> list[dict]:
     return usable
 
 
+def may_act_on(person: dict, args: dict) -> bool:
+    """Checks whether the user can act on the requested item."""
+    task_id = args.get("task_id")
+    if task_id is not None and task_id not in _visible_task_ids(person):
+        return False
+
+    version_id = args.get("version_id")
+    if version_id is not None and version_id not in _visible_version_ids(person):
+        return False
+
+    return True
+
+
 def public_part(tool: dict) -> dict:
-    """Only what the model is allowed to see — never `needs`, `audience`,
-    `writes`, or `run`, which are ours."""
+    """Returns only the tool definition visible to the AI."""
     return {"type": tool["type"], "function": tool["function"]}
 
 
 def find_tool(name: str, available: list[dict]) -> dict | None:
-    """Only offered tools may run — look the request up in THIS turn's
-    filtered list, never the full catalogue. Closes the gap where a model
-    asks for a tool it saw in an earlier conversation."""
+    """Finds a tool from the user's available tools."""
     return next((t for t in available if t["function"]["name"] == name), None)
 
 
 def describe(tool_name: str, args: dict) -> str:
-    """One-line, human-readable preview of a pending write, shown to the
+
+    """Creates a readable preview of a pending action.
     person before anything actually happens."""
+    if tool_name == "create_task":
+        return (f"Create task \u201c{args.get('title', '')}\u201d "
+                f"in project {args.get('project_id')}")
     if tool_name == "update_task_status":
         return f"Move task {args.get('task_id')} to '{args.get('status')}'"
     if tool_name == "comment_on_task":
