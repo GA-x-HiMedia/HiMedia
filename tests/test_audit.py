@@ -1,8 +1,9 @@
 """
-Memory tests — conversation history and pending confirmation actions.
-Checks that each user's history is kept separately, the maximum history
-limit is respected, and pending actions can be stored, retrieved, and
-removed. No network call.
+Audit logging tests.
+
+Checks that tool calls are saved as JSON events, multiple events are
+appended correctly, long summaries are limited, and Timer measures time.
+No network call.
 """
 import json
 import time

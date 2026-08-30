@@ -1,13 +1,21 @@
+"""
+Memory tests.
+
+Checks that conversation history and pending actions are stored correctly,
+kept separately for each phone number, and limited to the maximum history size.
+No network call is required.
+"""
+
 from agent import memory
 
-
 def setup_function(_):
-    # Clean memory before every test
+    """Clear stored memory before each test."""
     memory._history.clear()
     memory._pending.clear()
 
 
 def test_history_starts_empty():
+    """Test that a new phone number has no conversation history."""
     phone = "+97333000001"
 
     history = memory.history_for(phone)
@@ -16,6 +24,7 @@ def test_history_starts_empty():
 
 
 def test_remember_saves_messages():
+    """Test that messages are saved correctly in conversation history."""
     phone = "+97333000001"
 
     memory.remember(phone, "user", "Hello")
@@ -31,6 +40,7 @@ def test_remember_saves_messages():
 
 
 def test_history_is_separate_for_each_phone():
+    """Test that each phone number has its own separate history."""
     phone1 = "+97333000001"
     phone2 = "+97333000002"
 
@@ -45,6 +55,7 @@ def test_history_is_separate_for_each_phone():
 
 
 def test_history_keeps_only_maximum_messages():
+    """Test that history keeps only the maximum allowed number of messages."""
     phone = "+97333000001"
 
     for i in range(memory.MAX_HISTORY + 5):
@@ -57,6 +68,7 @@ def test_history_keeps_only_maximum_messages():
 
 
 def test_hold_and_peek_pending_action():
+    """Test that a pending action can be stored and retrieved."""
     phone = "+97333000001"
 
     tool = {"function": {"name": "update_task_status"}}
@@ -73,6 +85,7 @@ def test_hold_and_peek_pending_action():
 
 
 def test_pop_pending_removes_action():
+    """Test that retrieving a pending action removes it from memory."""
     phone = "+97333000001"
 
     tool = {"function": {"name": "update_task_status"}}
@@ -90,6 +103,7 @@ def test_pop_pending_removes_action():
 
 
 def test_pending_actions_are_separate_for_each_phone():
+    """Test that pending actions are stored separately for each phone number."""
     phone1 = "+97333000001"
     phone2 = "+97333000002"
 

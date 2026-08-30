@@ -1,14 +1,4 @@
-"""
-Turn a raw phone number into a person the rest of the agent can reason
-about. Nothing else happens until this succeeds (Chapter 24).
-
-A phone number is not proof of identity — sender IDs can be spoofed, SIMs
-get swapped, and a handset gets passed to a colleague (Chapter 13). So the
-lookup is not the whole of identity here: a known number on a device we have
-never seen is challenged with a one-time code first, and an unrecognised
-number is refused outright. See `device_gate` at the foot of this file, and
-the README's "what is not finished" section for the two limits that remain.
-"""
+"""Handles user identity, permissions, and device verification."""
 
 from __future__ import annotations
 
@@ -21,12 +11,13 @@ from . import audit, himedia
 
 logger = logging.getLogger(__name__)
 
-_cache: dict[str, tuple[dict, float]] = {}  # phone -> (person, fetched_at)
+_cache: dict[str, tuple[dict, float]] = {}  # Cached identity lookups.
 CACHE_SECONDS = 60
 
 
 def tidy(raw: str) -> str:
-    """whatsapp:+973 3300 0003 -> +97333000003"""
+    def tidy(raw: str) -> str:
+    """Normalizes a phone number."""
     v = raw.strip()
     if v.lower().startswith("whatsapp:"):
         v = v[9:].strip()
@@ -39,7 +30,7 @@ def tidy(raw: str) -> str:
 
 
 def who_is(raw_phone: str) -> dict | None:
-    """The person behind this number, or None if HiMedia doesn't know them."""
+    """Returns the person linked to this phone number."""
     phone = tidy(raw_phone)
     hit = _cache.get(phone)
     if hit and time.time() - hit[1] < CACHE_SECONDS:
@@ -64,21 +55,12 @@ def who_is(raw_phone: str) -> dict | None:
 
 
 def t_elapsed(timer) -> float:
-    """The Timer only sets elapsed_ms on exit; inside an except block it may
-    not be set yet."""
+    """Returns elapsed time safely."""
     return getattr(timer, "elapsed_ms", 0.0)
 
 
 def allowed(person: dict, module: str, level: str = "read") -> bool:
-    """Does this person hold at least `level` on `module`? Read straight off
-    their LIVE permissions map (from the API response) — never from a table
-    we maintain ourselves. Write always includes read.
-
-    The owner role is the one whose permission map arrives empty from
-    /v1/roles while meaning "everything". by-phone expands it for us, but we
-    honour is_owner too so the answer never depends on which endpoint the
-    caller happened to read.
-    """
+    """Checks whether a user has the required permission."""
     if person.get("role", {}).get("is_owner"):
         return True
 
@@ -89,23 +71,17 @@ def allowed(person: dict, module: str, level: str = "read") -> bool:
 
 
 def is_client(person: dict) -> bool:
-    """Client staff live in a different world of data from the production
-    company. Every audience decision in tools.py keys off this."""
+    """Returns whether the user is a client."""
     return person.get("audience") == "client"
 
 
 def phone_of(person: dict) -> str:
-    """The number every API call is filtered by.
-
-    It comes from the identity lookup, never from a tool argument — the model
-    must never get to choose whose data is fetched.
-    """
+    """Returns the verified phone number from the user's identity."""
     return person["user"]["phone"]
 
 
 def forget(raw_phone: str | None = None) -> None:
-    """Drop a cached lookup. Used by tests, and after moving a number onto a
-    different account mid-demo."""
+    """Clears cached identity data."""
     if raw_phone is None:
         _cache.clear()
     else:
@@ -116,13 +92,7 @@ _colleagues: dict[tuple[str, str, str], tuple[list[str], float]] = {}
 
 
 def colleagues_who_can(person: dict, module: str, level: str = "write") -> list[str]:
-    """Names of people at the caller's OWN company who hold this permission.
-
-    A refusal is more use when it ends with a name. Only ever looks inside the
-    caller's own company, so it can never become a way of learning who works
-    at another one — a client asking who can approve must never be handed a
-    production-company staff list.
-    """
+    """Finds colleagues with the required permission."""
     company_id = person["company"]["id"]
     key = (company_id, module, level)
 
@@ -145,7 +115,7 @@ def colleagues_who_can(person: dict, module: str, level: str = "write") -> list[
 
 
 def describe(person: dict) -> str:
-    """One line for logs and for the terminal banner."""
+    """Returns a short description of the user."""
     user = person["user"]
     return (
         f"{user['full_name']} · {person['role']['key']} · "
@@ -153,9 +123,7 @@ def describe(person: dict) -> str:
     )
 
 
-# What to say to a number we do not recognise. Polite, brief, and then stop:
-# do not offer to look anything up, do not guess who they might be, and do not
-# fall back to a "public" mode. An unknown number gets nothing.
+# Reply used when the phone number is not recognized.
 UNKNOWN_NUMBER_REPLY = (
     "ما لقيت رقمك في نظام HiMedia. "
     "كلّم مسؤول الحساب عندكم عشان يضيفك.\n"
@@ -164,24 +132,7 @@ UNKNOWN_NUMBER_REPLY = (
 )
 
 
-# --- first-device verification ----------------------------------------------
-#
-# Scoped deliberately small: the path is right, the four cases are tested,
-# and nothing further was added (Ch. 34 — no late features).
-#
-# A phone number is not proof of identity: sender IDs can be spoofed and SIMs
-# get swapped, and until now this project trusted a number the moment the API
-# recognised it. The first time an unknown device contacts us we now issue a
-# one-time code and answer nothing else until it comes back.
-#
-# The code is delivered OUT OF BAND — to the server log here, which stands in
-# for the email a production version would send. Sending it over the same
-# WhatsApp thread would prove nothing at all: whoever holds the number would
-# simply read it. That is the one part of this worth keeping whatever else
-# changes.
-#
-# In memory, like everything else in this project (README, "what's not
-# finished"): a restart asks everyone to verify again.
+# First-device verification.
 
 _verified_devices: set[str] = set()
 _pending_codes: dict[str, tuple[str, float]] = {}
@@ -190,17 +141,16 @@ CODE_SECONDS = 10 * 60
 
 
 def is_trusted_device(raw_phone: str) -> bool:
+    """Checks whether the device has been verified."""
     return tidy(raw_phone) in _verified_devices
 
 
 def begin_verification(raw_phone: str) -> str:
-    """Issue a fresh code for this number and return it for out-of-band
-    delivery. Any previous unused code stops working."""
+    """Creates a new verification code."""   
     phone = tidy(raw_phone)
     code = f"{secrets.randbelow(1_000_000):06d}"
     _pending_codes[phone] = (code, time.time())
-    # The code itself never goes to audit.log — that file is a record of what
-    # happened, not a place to keep secrets.
+    # Do not store verification codes in the audit log.
     audit.log_stage(phone=phone, stage="identity.verification",
                     duration_ms=0.0, detail="code issued")
     logger.warning("Verification code for %s: %s (deliver out of band)", phone, code)
@@ -208,8 +158,7 @@ def begin_verification(raw_phone: str) -> str:
 
 
 def submit_code(raw_phone: str, submitted: str) -> bool:
-    """True if this is the right code, in time. A correct code trusts the
-    device from now on; a wrong one burns nothing, but an expired one is gone."""
+    """Verifies a submitted code and trusts the device if valid."""
     phone = tidy(raw_phone)
     held = _pending_codes.get(phone)
     if held is None:
@@ -231,8 +180,7 @@ def submit_code(raw_phone: str, submitted: str) -> bool:
 
 
 def forget_device(raw_phone: str | None = None) -> None:
-    """Drop a device's verified status. Used by tests, and when a number is
-    reported lost."""
+    """Removes a device's verification status."""
     if raw_phone is None:
         _verified_devices.clear()
         _pending_codes.clear()
@@ -260,42 +208,27 @@ DEVICE_VERIFIED = (
 
 
 def device_gate(person: dict | None, raw_phone: str, message: str) -> str | None:
-    """The whole gate, in one call, so the callers stay thin.
+    """Handles unknown users and first-device verification.
 
-    Returns None when the message should be handled normally. Otherwise it
-    returns the reply to send instead.
-
-    The order of the two checks below is the whole point, and it is why
-    `person` is a parameter rather than something this function looks up:
-
-      unknown number  -> the flat refusal, and nothing else (Ch. 24). We do
-                         NOT send a code. Telling a stranger we have emailed
-                         them a six-digit code confirms the system exists and
-                         that we are processing them, which is exactly what
-                         Ch. 30's "unknown number -> polite refusal, nothing
-                         leaked" is testing for. An OTP here is worse security,
-                         not better.
-
-      known number,    -> the OTP challenge. This is the case Ch. 13 actually
-      new device          describes: a SIM gets swapped or a handset is handed
-                          to a colleague, and identity is the only thing our
-                          permission filtering keys off.
-
-    Keeping the unknown-number check inside the function means a future caller
-    cannot reintroduce the leak by forgetting to guard the call.
+    Returns None when normal processing can continue.
     """
     if person is None:
+        # Unknown users receive no system information.
+
         return UNKNOWN_NUMBER_REPLY
 
     if is_trusted_device(raw_phone):
         return None
 
     phone = tidy(raw_phone)
+
     if phone in _pending_codes:
+        # Verify the submitted code.
         if submit_code(phone, message):
             return DEVICE_VERIFIED
         begin_verification(phone)
         return WRONG_CODE
 
+    # Start verification for a new device.
     begin_verification(phone)
     return ASK_FOR_CODE

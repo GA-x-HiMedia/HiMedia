@@ -1,14 +1,4 @@
-"""
-Audit trail (Phase 4 — "a log of every tool call"). Appends one JSON line
-per tool call to audit.log: who asked, which tool, with what arguments,
-what came back (summarized), how long it took, and whether it was
-allowed or refused. This is your debugger during the course and — per
-the handbook — a compliance requirement in production.
-
-This does NOT replace HiMedia's own audit_log module (that's the system
-of record). This is the agent-side record for our own debugging and for
-the conversation log the submission checklist asks for.
-"""
+"""Logs tool calls and response timing for auditing and debugging."""
 
 from __future__ import annotations
 
@@ -54,12 +44,7 @@ def log_stage(
     duration_ms: float,
     detail: str = "",
 ) -> None:
-    """One timing record for a stage of answering a single message.
-
-    Written to the same audit.log as the tool calls but with a "stage" key, so
-    the two are easy to tell apart when reading the file back. This is
-    measurement only — nothing branches on it.
-    """
+    """Logs the duration of a processing stage."""
     event = {
         "ts": datetime.now(timezone.utc).isoformat(),
         "phone": phone,
@@ -72,7 +57,7 @@ def log_stage(
 
 
 class Timer:
-    """Tiny context manager for measuring how long a tool call took."""
+    """Measures execution time."""
 
     def __enter__(self) -> "Timer":
         self._start = time.perf_counter()
