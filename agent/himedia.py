@@ -160,6 +160,25 @@ def list_version_comments(
 # Write operations.
 
 
+def create_task(title: str, project_id: str, description: str | None = None,
+                priority: str | None = None, due_on: str | None = None) -> dict:
+    """Create a task.
+
+    Deliberately exposes neither `status` nor `client_visible`, both of which
+    the endpoint accepts. A task created straight into `client_review`, or
+    created client-visible, reaches the client the moment it exists — see
+    tools.run_create_task for why that is not a first-ask action.
+    """
+    payload: dict = {"title": title, "project_id": project_id}
+    if description:
+        payload["description"] = description
+    if priority:
+        payload["priority"] = priority
+    if due_on:
+        payload["due_on"] = due_on
+    return post("/v1/tasks", payload)
+
+
 def update_task(task_id: str, changes: dict) -> dict:
     return patch(f"/v1/tasks/{task_id}", changes)
 
