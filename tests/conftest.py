@@ -1,3 +1,10 @@
+"""
+Pytest configuration for the test suite.
+
+Registers the `live` marker and automatically skips tests that need
+access to the real HiMedia sandbox and a real API key unless
+RUN_LIVE_TESTS=1 is explicitly set in the environment.
+"""
 import os
 
 import pytest
