@@ -255,9 +255,12 @@ def run_decide_version(person: dict, args: dict) -> dict:
 # not extra safety — people who are asked to retype a phrase ten times a day
 # stop reading it, and then it protects nothing.
 #
-# Note this sandbox has no delete endpoint of any kind: the entire write
-# surface is PATCH /v1/tasks/{id} and three POSTs. "Cancelled" is the closest
-# thing to destroying work that exists here.
+# Note nothing the agent can do deletes anything: its whole write surface is
+# PATCH /v1/tasks/{id} and three POSTs, and the API offers no way to delete a
+# task or a version at any level. (It does expose DELETE /v1/users/{id}, which
+# this agent neither offers nor calls — checked against the API's own schema.)
+# So "cancelled" is the nearest thing to destroying work that any of these
+# actions can reach.
 
 POINT_OF_NO_RETURN_STATUSES = {
     "client_review",   # the client can now see it; you cannot un-send it
