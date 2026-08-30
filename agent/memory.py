@@ -8,12 +8,21 @@ Two things live here:
   - a single pending write action per phone number, awaiting a yes/no
     (Phase 3 — "confirm before every write")
 """
+
 from __future__ import annotations
 
+import time
+
 _history: dict[str, list[dict]] = {}
-_pending: dict[str, dict] = {}  # phone -> {"tool": <tool dict>, "args": dict}
+_pending: dict[str, dict] = {}  # phone -> {"tool": ..., "args": ..., "at": ...}
 
 MAX_HISTORY = 24  # keep roughly the last dozen exchanges
+
+# How long a held write waits for its yes. A confirmation is only meaningful
+# while the person still remembers what they were asked — a "yes" arriving
+# tomorrow morning is answering a question they have long forgotten, and on
+# WhatsApp that is an easy accident.
+PENDING_SECONDS = 15 * 60
 
 
 def history_for(phone: str) -> list[dict]:
@@ -27,11 +36,24 @@ def remember(phone: str, role: str, content) -> None:
 
 
 def hold(phone: str, tool: dict, args: dict) -> None:
-    _pending[phone] = {"tool": tool, "args": args}
+    _pending[phone] = {"tool": tool, "args": args, "at": time.time()}
+
+
+def _is_stale(held: dict) -> bool:
+    return time.time() - held.get("at", 0) > PENDING_SECONDS
 
 
 def peek_pending(phone: str) -> dict | None:
-    return _pending.get(phone)
+    """The write waiting on a yes, or None if there isn't one — including the
+    case where one was parked so long ago that it has gone stale. A stale hold
+    is dropped rather than run: silence is not consent."""
+    held = _pending.get(phone)
+    if held is None:
+        return None
+    if _is_stale(held):
+        del _pending[phone]
+        return None
+    return held
 
 
 def pop_pending(phone: str) -> dict | None:
@@ -39,4 +61,4 @@ def pop_pending(phone: str) -> dict | None:
 
 
 def has_pending(phone: str) -> bool:
-    return phone in _pending
+    return peek_pending(phone) is not None
