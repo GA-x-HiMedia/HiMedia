@@ -175,16 +175,12 @@ def test_owner_scope_unlocks_every_tool_in_the_catalogue():
     }
 
 
-
 def test_catalogue_has_exactly_five_write_tools():
     """Test that the tool catalogue contains the expected write tools."""
     write_tools = {t["function"]["name"] for t in ALL_TOOLS if t["writes"]}
-    assert write_tools == {
-        "create_task", "update_task_status", "comment_on_task",
-        "comment_on_version", "decide_version",
-    }
 
     assert write_tools == {
+        "create_task",
         "update_task_status",
         "comment_on_task",
         "comment_on_version",
