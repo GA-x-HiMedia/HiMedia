@@ -12,7 +12,6 @@ venv/
 vectorstore/
 
 scr/
-data/
 
 __pycache__/
 vectorstore/
