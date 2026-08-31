@@ -119,7 +119,12 @@ def test_a_plain_yes_cancels_a_destructive_write(reply_text):
 
     assert len(calls) == 0
     assert not memory.has_pending(PHONE)
-    assert "cancelled" in reply.lower()
+
+    if any("\u0600" <= ch <= "\u06ff" for ch in reply_text):
+        assert "ألغيت" in reply
+    else:
+        assert "cancelled" in reply.lower()
+
     assert brain.CONFIRM_PHRASE in reply
 
 
@@ -141,7 +146,8 @@ def test_a_partial_match_cancels():
 
     assert len(calls) == 0
     assert not memory.has_pending(PHONE)
-    assert "cancelled" in reply.lower()
+    assert "ألغيت" in reply
+    assert brain.CONFIRM_PHRASE in reply
 
 
 def test_a_longer_phrase_containing_it_cancels():
@@ -154,7 +160,7 @@ def test_a_longer_phrase_containing_it_cancels():
 
 
 def test_the_arabic_cancellation_message_is_used_for_an_arabic_speaker():
-    reply, calls = _answer("ok", locale="ar")
+    reply, calls = _answer("تمام", locale="ar")
 
     assert len(calls) == 0
     assert brain.CONFIRM_PHRASE in reply
@@ -276,43 +282,31 @@ def test_the_same_tool_is_judged_by_its_arguments():
         "status": "cancelled",
     }
 
-    assert (
-        tools.is_destructive(
-            "update_task_status",
-            harmless,
-        )
-        is False
-    )
+    assert tools.is_destructive(
+        "update_task_status",
+        harmless,
+    ) is False
 
-    assert (
-        tools.is_destructive(
-            "update_task_status",
-            destructive,
-        )
-        is True
-    )
+    assert tools.is_destructive(
+        "update_task_status",
+        destructive,
+    ) is True
 
 
 def test_reads_never_need_the_phrase():
     for tool in tools.ALL_TOOLS:
         if not tool["writes"]:
-            assert (
-                tools.is_destructive(
-                    tool["function"]["name"],
-                    {},
-                )
-                is False
-            )
+            assert tools.is_destructive(
+                tool["function"]["name"],
+                {},
+            ) is False
 
 
 def test_an_unclassified_or_unknown_tool_fails_towards_asking():
-    assert (
-        tools.is_destructive(
-            "some_tool_added_later",
-            {"task_id": "t"},
-        )
-        is True
-    )
+    assert tools.is_destructive(
+        "some_tool_added_later",
+        {"task_id": "t"},
+    ) is True
 
 
 def test_every_write_tool_declares_whether_it_is_destructive():
