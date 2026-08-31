@@ -403,6 +403,29 @@ Explicitly out of scope for the two-week capstone, not oversights:
   (`AFFIRMATIVE`/`NEGATIVE` in `agent/brain.py`), not model-interpreted
   intent.
 
+## The browser interface
+
+A third way in, next to the CLI and the WhatsApp webhook, and the same agent
+behind all three. `agent/web.py` is thin in exactly the way `whatsapp.py` is
+thin: it turns a request into `(phone, text)`, calls `identity.device_gate`
+and then `brain.reply_to` in that order, and returns what comes back.
+
+```bash
+uvicorn agent.web:app --reload --port 8000   # from this folder
+cd react && npm install && npm run dev       # then http://localhost:5173
+```
+
+What it adds over the CLI is streaming: `brain.reply_to` already reports
+"Thinking…" and "Calling `list_tasks`…" through `on_status`, and the API
+forwards each one as a server-sent event, so the browser shows a tool call
+while it is happening rather than after the reply. The permission filter, the
+device challenge and the confirmation gate are all drawn on screen. Full
+notes in [react/README.md](react/README.md).
+
+There is no password on that API and it binds to localhost: it is a
+development front end for a sandbox, and anyone who can reach it can be any
+of the thirteen people.
+
 ## Project layout
 
 ```
@@ -417,8 +440,10 @@ agent/
   memory.py      # conversation history + pending-write state
   brain.py       # the agent loop, confirm-before-write flow
   whatsapp.py    # webhook verify/receive/send — thin, no logic of its own
+  web.py         # HTTP API for the browser UI — thin, in the same way
   cli.py         # terminal test harness
   demo.py        # scripted Phase 1+2 walkthrough
+react/           # the browser chat interface (React + Vite) — see react/README.md
 tests/
   test_identity.py            # pure logic
   test_tools_filtering.py      # pure logic — all 11 tools

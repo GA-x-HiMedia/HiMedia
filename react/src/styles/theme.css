@@ -1,0 +1,52 @@
+/* HiMedia brand palette.
+ *
+ * Every colour in this interface is named here and used nowhere else as a
+ * literal. Changing a brand colour is a change to this file only.
+ *
+ * The status colours are not decoration — each one carries the same meaning
+ * it carries in the presentation deck, and the interface uses them that way:
+ * green for a write that went through, red for a refusal or a point of no
+ * return, peach for something that needs the person to look before acting.
+ */
+
+:root {
+  /* --- primary --- */
+  --cream: #f6f3ec;        /* page background */
+  --ink: #15151a;          /* headings, dark blocks */
+  --white: #ffffff;        /* cards, panels */
+  --orange: #ff5a2b;       /* labels, highlights, active state, emphasis */
+
+  /* --- secondary --- */
+  --warm-grey: #e0ddd9;    /* borders, dividers, inactive */
+  --muted: #716260;        /* secondary text, captions */
+  --panel: #f3f0e8;        /* subtle contrast against the cream */
+
+  /* --- status --- */
+  --green: #259563;        /* safe flow, completed, allowed */
+  --green-pale: #e9f6ea;   /* success bubbles and backgrounds */
+  --red: #be3f46;          /* limitations, warnings, refusals */
+  --peach: #f7e8e0;        /* callouts, proof statements, held actions */
+
+  /* --- derived, so the shades stay in the family --- */
+  --orange-soft: rgba(255, 90, 43, 0.10);
+  --orange-line: rgba(255, 90, 43, 0.28);
+  --ink-soft: rgba(21, 21, 26, 0.55);
+  --scrim: rgba(21, 21, 26, 0.35);      /* behind a drawer on a phone */
+  --on-orange-soft: rgba(255, 255, 255, 0.22);   /* code inside an orange bubble */
+  --on-orange-line: rgba(255, 255, 255, 0.35);
+  --shadow-sm: 0 1px 2px rgba(21, 21, 26, 0.05);
+  --shadow-md: 0 2px 10px rgba(21, 21, 26, 0.06);
+  --shadow-lg: 0 12px 40px rgba(21, 21, 26, 0.12);
+
+  /* --- shape and type --- */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-pill: 999px;
+
+  --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --arabic: "Segoe UI", "Noto Naskh Arabic", "Dubai", Tahoma, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+
+  color-scheme: light;
+}
