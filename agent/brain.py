@@ -125,8 +125,20 @@ def _emit(on_status: Callable[[str], None] | None, text: str) -> None:
 
 
 def _language_of(message: str) -> str:
-    """Detects whether a message contains Arabic text."""
-    return "ar" if any("؀" <= ch <= "ۿ" for ch in message) else "en"
+    """Which language to answer in: whichever most of the WORDS are in.
+
+    Bahrain code-switches constantly - "hi تمام thanks", or an Arabic sentence
+    carrying English production terms like "status" and "project". Deciding on
+    the presence of a single Arabic character meant one borrowed word flipped
+    the whole reply into Arabic. Counting words rather than characters also
+    avoids English simply winning on length, since English words are longer.
+    """
+    words = [w for w in message.split() if any(ch.isalpha() for ch in w)]
+    if not words:
+        return "en"
+    arabic = sum(1 for w in words
+                 if any("؀" <= ch <= "ۿ" for ch in w))
+    return "ar" if arabic * 2 > len(words) else "en"
 
 
 def reply_to(person: dict, message: str, phone: str, on_status: Callable[[str], None] | None = None) -> str:
