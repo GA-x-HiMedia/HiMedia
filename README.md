@@ -62,6 +62,10 @@ Five write tools, layered on top:
 | `comment_on_version` | `reviews:write` |
 | `decide_version` | `reviews:write` |
  
+## How permissions work
+
+Every message starts by asking the API who owns the number and what they may do — nothing is hard-coded on our side. **The filtering happens in `agent/tools.py`**: `tools_for()` throws away any tool this person's role, audience or approval rank does not allow, so the model is never even offered it. Each tool then re-checks that the specific task or version belongs to the caller before it acts, because the API filters lists by phone number but hands over single items to anyone who names one.
+
 ## Safety: nothing changes without a yes
  
 When the agent wants to run a write tool, it doesn't run it right away. It previews what it's about to do and waits for the next message to confirm.
