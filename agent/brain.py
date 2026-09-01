@@ -34,6 +34,24 @@ NEGATIVE = {
 
 # Destructive actions require an exact confirmation phrase.
 CONFIRM_PHRASE = "تأكيد نهائي"
+CONFIRM_PHRASE_EN = "FINAL CONFIRMATION"
+
+# Either is accepted, in any language. The phrase works because it cannot be
+# typed by reflex, not because of which script it is in - and requiring an
+# Arabic keyboard from an English speaker protects nobody.
+CONFIRM_PHRASES = (CONFIRM_PHRASE, CONFIRM_PHRASE_EN)
+
+
+def phrase_for(language: str) -> str:
+    """The phrase to ASK for. Both are always accepted."""
+    return CONFIRM_PHRASE if language == "ar" else CONFIRM_PHRASE_EN
+
+
+def is_confirm_phrase(message: str) -> bool:
+    """Exact match on either phrase, ignoring surrounding whitespace and,
+    for the English one, capitalisation."""
+    text = message.strip()
+    return text == CONFIRM_PHRASE or text.upper() == CONFIRM_PHRASE_EN
 
 
 def needs_exact_phrase(tool_name: str, args: dict) -> bool:
@@ -281,12 +299,12 @@ def reply_to(person: dict, message: str, phone: str, on_status: Callable[[str], 
                     if language == "ar":
                         ask = (
                             f"{preview}.\n"
-                            f"للتأكيد اكتب «{CONFIRM_PHRASE}» بالضبط."
+                            f"للتأكيد اكتب «{phrase_for(language)}» بالضبط."
                         )
                     else:
                         ask = (
                             f"{preview}.\n"
-                            f"To confirm, reply with exactly: {CONFIRM_PHRASE}"
+                            f"To confirm, reply with exactly: {phrase_for(language)}"
                         )
                 else:
                     if language == "ar":
@@ -356,12 +374,12 @@ def _handle_pending_reply(person: dict, phone: str, message: str, pending: dict)
     language = _language_of(message)
 
     if needs_exact_phrase(pending["tool"]["function"]["name"], pending["args"]):
-        if message.strip() != CONFIRM_PHRASE:
+        if not is_confirm_phrase(message):
             held = memory.pop_pending(phone)
             _log(person, phone, held["tool"]["function"]["name"], held["args"],
                  "cancelled: confirmation phrase not given", 0.0, False)
             template = _PHRASE_CANCELLED_AR if language == "ar" else _PHRASE_CANCELLED_EN
-            reply = template.format(phrase=CONFIRM_PHRASE)
+            reply = template.format(phrase=phrase_for(language))
 
             memory.remember(phone, "user", message)
             memory.remember(phone, "assistant", reply)
