@@ -1,0 +1,46 @@
+{"ts": "2026-09-01T11:32:42.747457+00:00", "phone": "+97333000001", "stage": "identity.who_is", "duration_ms": 847.4, "detail": "live fetch"}
+{"ts": "2026-09-01T11:32:43.804709+00:00", "phone": "+97333000002", "stage": "identity.who_is", "duration_ms": 538.1, "detail": "live fetch"}
+{"ts": "2026-09-01T11:32:45.004856+00:00", "phone": "+97333000003", "stage": "identity.who_is", "duration_ms": 646.3, "detail": "live fetch"}
+{"ts": "2026-09-01T11:32:46.363706+00:00", "phone": "+97333000004", "stage": "identity.who_is", "duration_ms": 662.4, "detail": "live fetch"}
+{"ts": "2026-09-01T11:32:47.799131+00:00", "phone": "+97333000005", "stage": "identity.who_is", "duration_ms": 812.8, "detail": "live fetch"}
+{"ts": "2026-09-01T11:32:48.862181+00:00", "phone": "+97333000006", "stage": "identity.who_is", "duration_ms": 528.2, "detail": "live fetch"}
+{"ts": "2026-09-01T11:32:50.030524+00:00", "phone": "+97333000007", "stage": "identity.who_is", "duration_ms": 659.8, "detail": "live fetch"}
+{"ts": "2026-09-01T11:32:51.470313+00:00", "phone": "+97333000010", "stage": "identity.who_is", "duration_ms": 711.9, "detail": "live fetch"}
+{"ts": "2026-09-01T11:32:52.659247+00:00", "phone": "+97333000011", "stage": "identity.who_is", "duration_ms": 536.7, "detail": "live fetch"}
+{"ts": "2026-09-01T11:32:53.915084+00:00", "phone": "+97333000020", "stage": "identity.who_is", "duration_ms": 618.6, "detail": "live fetch"}
+{"ts": "2026-09-01T11:32:55.280879+00:00", "phone": "+97333000021", "stage": "identity.who_is", "duration_ms": 662.8, "detail": "live fetch"}
+{"ts": "2026-09-01T11:32:56.715106+00:00", "phone": "+97333000022", "stage": "identity.who_is", "duration_ms": 655.7, "detail": "live fetch"}
+{"ts": "2026-09-01T11:32:57.922951+00:00", "phone": "+97333000030", "stage": "identity.who_is", "duration_ms": 528.3, "detail": "live fetch"}
+{"ts": "2026-09-01T11:33:28.281352+00:00", "phone": "+97333000003", "stage": "identity.who_is", "duration_ms": 706.5, "detail": "live fetch"}
+{"ts": "2026-09-01T11:34:04.684140+00:00", "phone": "+97333000003", "stage": "model_round_1", "duration_ms": 28002.9, "detail": "en"}
+{"ts": "2026-09-01T11:34:04.685696+00:00", "phone": "+97333000003", "name": "Khalid Mansoor", "role": "editor", "tool": "who_am_i", "args": {}, "result_summary": "{'name': 'Khalid Mansoor', 'company': 'Hussain Media Production', 'role': 'editor', 'audience': 'internal', 'counts': {'open_tasks': 1, 'versions_awaiting_review': 2}}", "duration_ms": 0.0, "allowed": true}
+{"ts": "2026-09-01T11:34:04.685826+00:00", "phone": "+97333000003", "stage": "tool:who_am_i", "duration_ms": 0.0, "detail": "en"}
+{"ts": "2026-09-01T11:34:33.536799+00:00", "phone": "+97333000003", "stage": "model_round_2", "duration_ms": 28851.0, "detail": "en"}
+{"ts": "2026-09-01T11:34:34.234169+00:00", "phone": "+97333000003", "name": "Khalid Mansoor", "role": "editor", "tool": "list_tasks", "args": {"open_only": false}, "result_summary": "[{'id': 'tsk_0002', 'title': 'Cut Reels #1 for the Ramadan campaign', 'status': 'in_progress', 'priority': 'high', 'due': '2026-08-18', 'project': 'Bank of Salam — Ramadan 2026'}, {'id': 'tsk_0005', 'title': 'Export the 5G launch teaser', 'status': 'done', 'priority': 'high', 'due': '2026-08-19', 'p", "duration_ms": 695.1, "allowed": true}
+{"ts": "2026-09-01T11:34:34.234870+00:00", "phone": "+97333000003", "stage": "tool:list_tasks", "duration_ms": 695.1, "detail": "en"}
+{"ts": "2026-09-01T11:35:17.230469+00:00", "phone": "+97333000003", "stage": "model_round_3", "duration_ms": 42995.4, "detail": "en"}
+{"ts": "2026-09-01T11:35:17.231279+00:00", "phone": "+97333000003", "stage": "rounds_used", "duration_ms": 0.0, "detail": "3 of 6 (en)"}
+{"ts": "2026-09-01T11:35:17.231758+00:00", "phone": "+97333000003", "stage": "total", "duration_ms": 100550.8, "detail": "en"}
+{"ts": "2026-09-01T11:36:17.321642+00:00", "phone": "+97333000003", "stage": "model_round_1", "duration_ms": 44704.6, "detail": "en"}
+{"ts": "2026-09-01T11:36:17.323600+00:00", "phone": "+97333000003", "name": "Khalid Mansoor", "role": "editor", "tool": "who_am_i", "args": {}, "result_summary": "{'name': 'Khalid Mansoor', 'company': 'Hussain Media Production', 'role': 'editor', 'audience': 'internal', 'counts': {'open_tasks': 1, 'versions_awaiting_review': 2}}", "duration_ms": 0.0, "allowed": true}
+{"ts": "2026-09-01T11:36:17.324300+00:00", "phone": "+97333000003", "stage": "tool:who_am_i", "duration_ms": 0.0, "detail": "en"}
+{"ts": "2026-09-01T11:36:18.047576+00:00", "phone": "+97333000003", "name": "Khalid Mansoor", "role": "editor", "tool": "list_tasks", "args": {"open_only": true}, "result_summary": "[{'id': 'tsk_0002', 'title': 'Cut Reels #1 for the Ramadan campaign', 'status': 'in_progress', 'priority': 'high', 'due': '2026-08-18', 'project': 'Bank of Salam — Ramadan 2026'}]", "duration_ms": 722.8, "allowed": true}
+{"ts": "2026-09-01T11:36:18.048499+00:00", "phone": "+97333000003", "stage": "tool:list_tasks", "duration_ms": 722.8, "detail": "en"}
+{"ts": "2026-09-01T11:36:30.666096+00:00", "phone": "+97333000003", "stage": "model_round_2", "duration_ms": 12617.0, "detail": "en"}
+{"ts": "2026-09-01T11:36:30.666992+00:00", "phone": "+97333000003", "stage": "rounds_used", "duration_ms": 0.0, "detail": "2 of 6 (en)"}
+{"ts": "2026-09-01T11:36:30.667478+00:00", "phone": "+97333000003", "stage": "total", "duration_ms": 58050.2, "detail": "en"}
+{"ts": "2026-09-01T11:37:16.464216+00:00", "phone": "+97333000003", "stage": "model_round_1", "duration_ms": 30647.5, "detail": "en"}
+{"ts": "2026-09-01T11:37:16.466057+00:00", "phone": "+97333000003", "stage": "rounds_used", "duration_ms": 0.0, "detail": "1 of 6 (en)"}
+{"ts": "2026-09-01T11:37:16.466550+00:00", "phone": "+97333000003", "stage": "total", "duration_ms": 30649.5, "detail": "en"}
+{"ts": "2026-09-01T11:38:08.468200+00:00", "phone": "+97333000003", "stage": "model_round_1", "duration_ms": 24507.2, "detail": "en"}
+{"ts": "2026-09-01T11:38:08.470092+00:00", "phone": "+97333000003", "stage": "rounds_used", "duration_ms": 0.0, "detail": "1 of 6 (en)"}
+{"ts": "2026-09-01T11:38:08.470634+00:00", "phone": "+97333000003", "stage": "total", "duration_ms": 24509.2, "detail": "en"}
+{"ts": "2026-09-01T11:38:48.362496+00:00", "phone": "+97333000003", "stage": "model_round_1", "duration_ms": 16862.4, "detail": "en"}
+{"ts": "2026-09-01T11:38:48.364434+00:00", "phone": "+97333000003", "name": "Khalid Mansoor", "role": "editor", "tool": "who_am_i", "args": {}, "result_summary": "{'name': 'Khalid Mansoor', 'company': 'Hussain Media Production', 'role': 'editor', 'audience': 'internal', 'counts': {'open_tasks': 1, 'versions_awaiting_review': 2}}", "duration_ms": 0.0, "allowed": true}
+{"ts": "2026-09-01T11:38:48.364979+00:00", "phone": "+97333000003", "stage": "tool:who_am_i", "duration_ms": 0.0, "detail": "en"}
+{"ts": "2026-09-01T11:39:10.017703+00:00", "phone": "+97333000003", "stage": "model_round_2", "duration_ms": 21652.4, "detail": "en"}
+{"ts": "2026-09-01T11:39:10.018649+00:00", "phone": "+97333000003", "stage": "rounds_used", "duration_ms": 0.0, "detail": "2 of 6 (en)"}
+{"ts": "2026-09-01T11:39:10.019157+00:00", "phone": "+97333000003", "stage": "total", "duration_ms": 38519.0, "detail": "en"}
+{"ts": "2026-09-01T11:40:04.546658+00:00", "phone": "+97333000003", "stage": "model_round_1", "duration_ms": 8328.3, "detail": "en"}
+{"ts": "2026-09-01T11:40:04.548490+00:00", "phone": "+97333000003", "stage": "rounds_used", "duration_ms": 0.0, "detail": "1 of 6 (en)"}
+{"ts": "2026-09-01T11:40:04.548884+00:00", "phone": "+97333000003", "stage": "total", "duration_ms": 8330.3, "detail": "en"}
