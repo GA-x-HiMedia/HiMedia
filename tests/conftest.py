@@ -1,6 +1,16 @@
 """Pytest configuration and test markers."""
 
 import os
+import sys
+
+# The live tests print Arabic replies. A default Windows console is cp1252 and
+# raises UnicodeEncodeError on the first Arabic character, failing the test for
+# a reason that has nothing to do with the agent. Ask for UTF-8 instead.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, OSError):
+        pass
 
 import pytest
 

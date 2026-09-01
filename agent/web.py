@@ -252,7 +252,10 @@ def session(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         "locale": person["user"].get("locale", "en"),
         "permissions": person.get("permissions", {}),
         "approval_rank": person["role"].get("approval_rank"),
-        "counts": person.get("counts", {}),
+        # Workload is live operational data about a person: how much is on their
+        # plate right now. The sign-in screen does not need it, and handing it
+        # over for any number typed in would answer "how busy is my manager".
+        "counts": person.get("counts", {}) if verified else {},
         "trusted_device": identity.is_trusted_device(phone),
         "history": memory.history_for(phone) if verified else [],
         "pending": _pending_view(phone) if verified else None,

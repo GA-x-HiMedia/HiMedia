@@ -62,6 +62,10 @@ Five write tools, layered on top:
 | `comment_on_version` | `reviews:write` |
 | `decide_version` | `reviews:write` |
  
+## How permissions work
+
+Every message starts by asking the API who owns the number and what they may do — nothing is hard-coded on our side. **The filtering happens in `agent/tools.py`**: `tools_for()` throws away any tool this person's role, audience or approval rank does not allow, so the model is never even offered it. Each tool then re-checks that the specific task or version belongs to the caller before it acts, because the API filters lists by phone number but hands over single items to anyone who names one. Refusals are deliberately short and generic — naming what was withheld would confirm it exists, which is a disclosure in itself.
+
 ## Safety: nothing changes without a yes
  
 When the agent wants to run a write tool, it doesn't run it right away. It previews what it's about to do and waits for the next message to confirm.
@@ -121,6 +125,7 @@ Each leak fix was verified by taking it back out and re-running its test. All of
 - **Device trust is basic.** A new phone/device gets a one-time code before it's trusted; after that, anyone holding that number is treated as that person. The code is currently written to the server log rather than sent out of band.
 - **No persistent storage.** Conversation history and pending confirmations live in memory, so restarting the server clears them.
 - **Confirmation matching is a fixed word list** ("yes"/"no" and a few variants), not full language understanding.
+- **Version notes can't be marked internal.** A task comment can be hidden from the client; a version comment can't, so a client reads every note on any version they can see. We hide who wrote it, not what it says.
 - **Leak checks match words, not meaning.** A reply saying "your editor" instead of a name, or "twelve days overdue" instead of a figure, passes every check and is still a leak. The real defence is that those values are filtered out before the prompt is built, so the model never receives them.
 ## Project layout
  

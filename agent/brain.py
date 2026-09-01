@@ -16,6 +16,7 @@ from .tools import NOT_YOURS, describe, find_tool, is_destructive, may_act_on, p
 _ai_client: OpenAI | None = None
 
 MODEL = "gemini-3.6-flash"
+MAX_MESSAGE = 2000   # longest incoming message we will process
 MAX_ROUNDS = 6  # Prevent unlimited tool-call loops.
 
 
@@ -87,8 +88,12 @@ def _system_prompt(person: dict, language: str) -> str:
         "permissions. "
         "Keep IDs, numbers, and dates in Latin digits regardless of language. Never "
         "invent a project, task, version, or number you did not get from a tool result. "
-        "If a tool call is refused, tell the person plainly what happened in their "
-        "language — never retry a different way to get around a refusal."
+        "If a tool call is refused, or you are asked for something you have no tool "
+        "for, keep the refusal SHORT and GENERIC: say only that you do not have "
+        "access to that, then offer what you can help with instead. Do NOT name "
+        "what was refused, the kind of data involved, or why — describing it "
+        "confirms it exists, which is itself a disclosure. Never retry a different "
+        "way to get around a refusal."
     )
 
 
@@ -120,11 +125,26 @@ def _emit(on_status: Callable[[str], None] | None, text: str) -> None:
 
 
 def _language_of(message: str) -> str:
-    """Detects whether a message contains Arabic text."""
-    return "ar" if any("؀" <= ch <= "ۿ" for ch in message) else "en"
+    """Which language to answer in: whichever most of the WORDS are in.
+
+    Bahrain code-switches constantly - "hi تمام thanks", or an Arabic sentence
+    carrying English production terms like "status" and "project". Deciding on
+    the presence of a single Arabic character meant one borrowed word flipped
+    the whole reply into Arabic. Counting words rather than characters also
+    avoids English simply winning on length, since English words are longer.
+    """
+    words = [w for w in message.split() if any(ch.isalpha() for ch in w)]
+    if not words:
+        return "en"
+    arabic = sum(1 for w in words
+                 if any("؀" <= ch <= "ۿ" for ch in w))
+    return "ar" if arabic * 2 > len(words) else "en"
 
 
 def reply_to(person: dict, message: str, phone: str, on_status: Callable[[str], None] | None = None) -> str:
+    # One cap for both entry points. web.py trims before calling; the WhatsApp
+    # webhook did not, so a very long message went straight to the model.
+    message = (message or "")[:MAX_MESSAGE]
     turn = audit.Timer()
     turn.__enter__()
 
@@ -154,7 +174,7 @@ def reply_to(person: dict, message: str, phone: str, on_status: Callable[[str], 
 
     if pending is not None:
         return _finish(
-            _handle_pending_reply(person, phone, message, pending, language),
+            _handle_pending_reply(person, phone, message, pending),
             0,
         )
 
@@ -329,8 +349,9 @@ _PHRASE_CANCELLED_EN = (
 )
 
 
-def _handle_pending_reply(person: dict, phone: str, message: str, pending: dict, language: str) -> str:
-    """Resolves a held confirmation."""
+def _handle_pending_reply(person: dict, phone: str, message: str, pending: dict) -> str:
+    """The language is read from the message itself, just below, so it is not
+    a parameter - passing one in would be ignored."""
     stripped = message.strip().lower()
     language = _language_of(message)
 
