@@ -12,6 +12,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    // Vite defaults to "localhost", which on Windows resolves to IPv6 only —
+    // so http://127.0.0.1:5173 is refused while http://localhost:5173 works.
+    // Binding to 0.0.0.0 makes both addresses reachable.
+    host: "0.0.0.0",
     proxy: {
       "/api": {
         target,

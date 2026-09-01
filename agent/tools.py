@@ -7,6 +7,22 @@ from .identity import allowed, is_client, phone_of
 
 # Check whether the user can access a specific item.
 
+# Approving a client deliverable is not the same act as commenting on one,
+# and the live data says so: every role carries an approval_rank, 1 for an
+# editor or photographer, 2 for a supervisor, 3 for a director. Until now
+# nothing read it, so an editor was offered "approve this version" exactly
+# like the director — the two looked identical because the only difference
+# between them was the field nobody checked.
+#
+# We block the rank the data explicitly calls lowest, and no more than that.
+# A role with no rank at all (an owner, an account manager) keeps the tool:
+# inventing a rule for roles the API does not rank would be hardcoding around
+# the live map, which is the one thing Ch. 10 says never to do. The API is
+# still the authority on which stage a given rank may decide; this is a floor
+# under it, not a replacement for it.
+MIN_APPROVAL_RANK = 2
+
+
 NOT_YOURS = {
     "refused": "NOT_VISIBLE_TO_YOU",
     "reason": (
@@ -385,9 +401,12 @@ ALL_TOOLS: list[dict] = [
         "function": {
             "name": "comment_on_task",
             "description": (
-                "Post a comment on a task. Internal production discussion by default — "
-                "only set client_visible=true if the person explicitly wants the client "
-                "to see it. Requires confirmation before it runs."
+                "WRITE a note or comment on a task. This is the tool for 'add a note', "
+                "'leave a note', 'write a note on this task', 'comment on this task'. "
+                "Internal production discussion by default — only set "
+                "client_visible=true if the person explicitly wants the client to see "
+                "it. To READ notes already on a task, use get_task_notes instead. "
+                "Requires confirmation before it runs."
             ),
             "parameters": {
                 "type": "object",
@@ -412,8 +431,9 @@ ALL_TOOLS: list[dict] = [
         "function": {
             "name": "get_task_notes",
             "description": (
-                "The conversation attached to one task — what was said about it and "
-                "when. Use after list_tasks for 'what did they say about it', 'has the "
+                "READ the notes already on one task — what was said about it and "
+                "when. This only reads; to write a new note use comment_on_task. "
+                "Use after list_tasks for 'what did they say about it', 'has the "
                 "client replied', 'what changes were asked for'. task_id must come from "
                 "a prior list_tasks result, never invented. This returns notes on a "
                 "TASK; for feedback on a video version use get_review_notes instead."
@@ -485,8 +505,9 @@ ALL_TOOLS: list[dict] = [
         "function": {
             "name": "get_review_notes",
             "description": (
-                "Feedback comments on one specific version, in the order they refer to "
-                "in the video. Use unresolved_only=true for 'what's left?'. version_id "
+                "READ the feedback already left on one version, in the order they refer "
+                "to in the video. This only reads; to write a new note on a version use "
+                "comment_on_version. Use unresolved_only=true for 'what's left?'. version_id "
                 "must come from a prior list_versions result — never invent one."
             ),
             "parameters": {
@@ -509,9 +530,12 @@ ALL_TOOLS: list[dict] = [
         "function": {
             "name": "comment_on_version",
             "description": (
-                "Leave a note on a specific version, optionally anchored to a timecode "
-                "in seconds. This is the client feedback channel — both staff and client "
-                "roles with review access use it. Requires confirmation before it runs."
+                "WRITE a note or comment on a specific version, optionally anchored to a "
+                "timecode in seconds. This is the tool for 'leave a note on this version'. "
+                "It does NOT approve or reject — use decide_version for that, and "
+                "get_review_notes to read notes that already exist. This is the client "
+                "feedback channel — both staff and client roles with review access use "
+                "it. Requires confirmation before it runs."
             ),
             "parameters": {
                 "type": "object",
@@ -536,10 +560,11 @@ ALL_TOOLS: list[dict] = [
         "function": {
             "name": "decide_version",
             "description": (
-                "Approve a version, or send it back with changes requested (a note is "
-                "required in that case). The API may still refuse this even though the "
-                "tool was offered — approval rank is checked server-side, separately "
-                "from read/write scope. Requires confirmation before it runs."
+                "Approve a version, or send it back with changes requested (a written "
+                "reason is required in that case). Only offered to roles senior enough "
+                "to end a review, and the API may still refuse it. Requires "
+                "confirmation before it runs. This DECIDES a version; to write a "
+                "comment on one without deciding, use comment_on_version."
             ),
             "parameters": {
                 "type": "object",
@@ -555,11 +580,25 @@ ALL_TOOLS: list[dict] = [
         "needs": ("reviews", "write"),
         "audience": "both",
         "writes": True,
+        # Scope says who may touch reviews at all; rank says who may end one.
+        "min_rank": MIN_APPROVAL_RANK,
         # Always requires stronger confirmation.
         "destructive": True,
         "run": run_decide_version,
     },
 ]
+
+
+def _rank_allows(person: dict, tool: dict) -> bool:
+    """False only when the caller's rank is explicitly below the tool's floor."""
+    floor = tool.get("min_rank")
+    if floor is None:
+        return True
+    role = person.get("role", {})
+    if role.get("is_owner"):
+        return True
+    rank = role.get("approval_rank")
+    return rank is None or rank >= floor
 
 
 def tools_for(person: dict) -> list[dict]:
@@ -572,6 +611,8 @@ def tools_for(person: dict) -> list[dict]:
             module, level = tool["needs"]
             if not allowed(person, module, level):
                 continue
+        if not _rank_allows(person, tool):
+            continue
         usable.append(tool)
     return usable
 

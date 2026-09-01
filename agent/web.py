@@ -28,6 +28,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import queue
 import threading
 from typing import Any
@@ -56,6 +57,35 @@ app.add_middleware(
 )
 
 MAX_MESSAGE = 2000
+
+# The sign-in directory lists real people. It exists so a demo can switch
+# between the thirteen seeded identities without typing numbers, which is
+# the whole point of the exercise - but it is still a staff directory, so it
+# can be switched off with HIMEDIA_DEMO_DIRECTORY=0 and must be off anywhere
+# that is not a demo.
+DEMO_DIRECTORY = os.getenv("HIMEDIA_DEMO_DIRECTORY", "1") != "0"
+
+
+def _require_own_device(raw_phone: str) -> str:
+    """Prove this request comes from the number it claims to be.
+
+    Naming a number is not the same as being that number. Every endpoint
+    that reads or clears ONE person's data goes through here, so an employee
+    cannot type a manager's number and read what they asked the agent - and
+    cannot learn whether the manager uses it at all.
+
+    The device check is the only proof of identity this project has, and it
+    is already how the chat path decides who it is talking to. Reusing it
+    here means there is one answer to "who are you", not two.
+    """
+    phone = identity.tidy(raw_phone)
+    if not identity.is_trusted_device(phone):
+        # Deliberately the same wording whether or not the number exists, so
+        # a refusal never confirms that somebody is on the system.
+        raise HTTPException(403, "This device has not been verified for that "
+                                 "number. Send a message first and answer the "
+                                 "verification code.")
+    return phone
 
 
 # --- reading a person's state ----------------------------------------------
@@ -162,7 +192,16 @@ def roster() -> dict[str, Any]:
 
     Two API calls, not thirteen — the permission lookup for one person happens
     in /api/session when they are actually chosen.
+
+    This is a staff directory and it is only here to make the demo
+    switchable. It deliberately does NOT say whether each person has
+    verified a device: that would answer "is my manager using this agent",
+    which nobody is entitled to ask. Set HIMEDIA_DEMO_DIRECTORY=0 to remove
+    the endpoint entirely.
     """
+    if not DEMO_DIRECTORY:
+        raise HTTPException(404, "Not found.")
+
     try:
         companies = {c["id"]: c for c in himedia.list_companies()}
         users = himedia.list_users()
@@ -178,7 +217,8 @@ def roster() -> dict[str, Any]:
             "role": user.get("role_key", ""),
             "company": company.get("name", ""),
             "client_side": company.get("kind") == "client_org",
-            "trusted_device": identity.is_trusted_device(user["phone"]),
+            # NOT trusted_device: whether someone has verified a device says
+            # whether they use the agent, and that is nobody else's business.
         })
 
     people.sort(key=lambda p: (p["client_side"], p["company"], p["phone"]))
@@ -196,6 +236,12 @@ def session(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
     identity.forget(raw_phone)  # never demo against a stale cache
     person, phone = _person_or_404(raw_phone)
 
+    # Identity, role and permissions describe the account and are what the
+    # sign-in screen needs before anyone has proved anything. The transcript
+    # and any half-finished write are private to whoever is holding the
+    # phone, so they are withheld until the device has been verified.
+    verified = identity.is_trusted_device(phone)
+
     return {
         "phone": phone,
         "name": person["user"]["full_name"],
@@ -208,8 +254,8 @@ def session(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         "approval_rank": person["role"].get("approval_rank"),
         "counts": person.get("counts", {}),
         "trusted_device": identity.is_trusted_device(phone),
-        "history": memory.history_for(phone),
-        "pending": _pending_view(phone),
+        "history": memory.history_for(phone) if verified else [],
+        "pending": _pending_view(phone) if verified else None,
         **_tool_view(person),
     }
 
@@ -323,9 +369,19 @@ async def chat_stream(payload: dict[str, Any] = Body(default={})) -> StreamingRe
 def audit_tail(limit: int = 60, phone: str | None = None) -> dict[str, Any]:
     """The tail of audit.log, for the panel that shows what the agent did.
 
+    Your own entries only. `phone` used to be optional, which meant leaving
+    it off returned every line for every person - each question they asked
+    and each tool that ran - and passing somebody else's number returned
+    theirs. It is now required and must be a number this device has proved
+    it holds.
+
     Read, never written, and only ever the last few lines. The file is the
     record of what happened; this endpoint does not get to edit it.
     """
+    if not phone:
+        raise HTTPException(400, "A phone number is required.")
+    phone = _require_own_device(phone)
+
     path = audit.AUDIT_LOG_PATH
     if not path.exists():
         return {"entries": [], "path": str(path)}
@@ -341,7 +397,10 @@ def audit_tail(limit: int = 60, phone: str | None = None) -> dict[str, Any]:
                 entry = json.loads(line)
             except json.JSONDecodeError:
                 continue  # a half-written line; the next read will have it
-            if phone and entry.get("phone") != identity.tidy(phone):
+            # Belt and braces. `phone` is required above, so the old
+            # `if phone and ...` was equivalent in practice - this just
+            # cannot be re-broken by making the parameter optional again.
+            if entry.get("phone") != phone:
                 continue
             entries.append(entry)
 
@@ -360,7 +419,9 @@ def reset(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
     if not raw_phone:
         raise HTTPException(400, "No phone number given.")
 
-    phone = identity.tidy(raw_phone)
+    # Clearing somebody's transcript is acting on their data, so it needs the
+    # same proof as reading it.
+    phone = _require_own_device(raw_phone)
     scope = payload.get("scope", "conversation")
 
     memory.pop_pending(phone)
