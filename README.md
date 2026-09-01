@@ -1,469 +1,138 @@
-# HiMedia WhatsApp Agent
-
-**General Assembly × JoinFuture Solutions W.L.L. — Two-Week Capstone**
+# HiMedia AI Agent
+ 
+**General Assembly × JoinFuture Solutions W.L.L., Two-Week Capstone**
 Students: Sara Alnajjar, Reem AlShehabi, Zainab Mohammed.
-
+ 
 ## What it does
-
-A production company called Hussain Media makes films for clients such as
-Bank of Salam. Their staff and their clients both want quick answers —
-*what am I working on today? has the client replied? which version are
-they waiting for?* — over WhatsApp, without opening a dashboard. This
-backend answers those questions correctly for whoever is asking, changes
-data only after they explicitly say yes, and never shows anyone more than
-they're allowed to see.
-
-No website here — a Python backend talking to three things: WhatsApp, the
-HiMedia sandbox API, and OpenAI.
-
+ 
+Hussain Media makes films for clients like Bank of Salam. Staff and clients both want quick answers, like *what am I working on today? has the client replied? which version are they waiting for?*, without opening a dashboard. This agent answers those questions correctly for whoever is asking, changes data only after they explicitly say yes, and never shows anyone more than they're allowed to see.
+ 
+It also includes a separate document Q&A tool that answers questions from the project handbook and brief, using only what's written in them.
+ 
+You can talk to it two ways: a terminal, or the React browser chat window. Both go through the same identity, permission, and safety logic underneath.
+ 
 ## Setup
-
+ 
 ```bash
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
-# edit .env: HIMEDIA_API_KEY is the shared class key from the handbook;
-# add a real OPENAI_API_KEY; WhatsApp values only needed for Phase 4
 ```
-
-## Phase 1 — Understand the System
-
-**Gate:** one command prints all 13 seeded people's role, permissions,
-and task count — real data, from the live API.
-
+ 
+Edit `.env`:
+ 
+- `HIMEDIA_API_KEY`: the shared class key from the handbook
+- `OPENAI_API_KEY`: a real key, needed to generate answers
+- `GEMINI_API_KEY`: optional alternative to OpenAI
+## Try it out
+ 
+See the 13 seeded people and their roles/permissions, pulled live from the API:
+ 
 ```bash
 python -m agent.roster
 ```
-
-**Also covers the API-exploration checklist** (5+ endpoints called
-manually, real response shapes inspected, internal vs. client proven to
-return different data):
-
-```bash
-python -m agent.explore
-```
-
-See `PERMISSIONS.md` for the tenant-isolation rules this confirmed.
-
-## Phase 2 — Identity and Permissions
-
-**Gate:** hold a real conversation in a terminal, as three different
-people, and each one gets a correctly different answer.
-
+ 
+Have a real conversation in the terminal as different people, and watch each one get a correctly different answer based on their permissions:
+ 
 ```bash
 python -m agent.cli
 ```
-
-Six read-only tools, filtered per caller's live permissions:
-
+ 
+## What it can do
+ 
+Six read-only tools, filtered to what the caller is actually allowed to see:
+ 
 | Tool | Needs |
 |---|---|
-| `who_am_i` | — |
+| `who_am_i` | none |
 | `list_tasks` | `tasks:read` |
 | `get_task_notes` | `tasks:read` |
 | `list_projects` | `projects:read` |
 | `list_versions` | `reviews:read` |
 | `get_review_notes` | `reviews:read` |
-
-`get_task_notes` reads the comments on one task. It is the only tool that
-touches `client_visible` data, so it always passes `client_visible_only` from
-the caller's own audience — see `QUESTIONS.md`.
-
-## Phase 3 — Actions and Safety
-
-**Gate:** the agent changes real data only after a human says yes, and
-the leak test runs clean as a client account. **This gate carries 30% of
-the grade.**
-
-Five write tools, added to the same catalogue:
-
-| Tool | Needs | Audience |
-|---|---|---|
-| `create_task` | `tasks:write` | internal |
-| `update_task_status` | `tasks:write` | internal |
-| `comment_on_task` | `tasks:write` | internal |
-| `comment_on_version` | `reviews:write` | both |
-| `decide_version` | `reviews:write` | both |
-
-**Confirm-before-write (`agent/brain.py` + `agent/memory.py`):** when the
-model requests a write tool, it is not run. The request is held
-(`memory.hold`), a one-line preview goes back to the person, and the
-action only actually executes on an explicit yes in the *next* message.
-Anything that's neither a clear yes nor no gets a reminder of what's
-still pending — never silently dropped, never silently run.
-
+ 
+Five write tools, layered on top:
+ 
+| Tool | Needs |
+|---|---|
+| `create_task` | `tasks:write` |
+| `update_task_status` | `tasks:write` |
+| `comment_on_task` | `tasks:write` |
+| `comment_on_version` | `reviews:write` |
+| `decide_version` | `reviews:write` |
+ 
+## Safety: nothing changes without a yes
+ 
+When the agent wants to run a write tool, it doesn't run it right away. It previews what it's about to do and waits for the next message to confirm.
+ 
 ```bash
 python -m agent.cli
 # sign in as Khalid (+97333000003) and try:
 #   "move task tsk_0001 to done"
-# then confirm with "yes" — or cancel with "no"
+# then confirm with "yes", or cancel with "no"
 ```
-
-**Writes you can't take back need an exact phrase, not a yes.** The rule: a
-write needs the typed phrase when it is *irreversible*, or when it *crosses the
-line to the client* and can't be un-sent. Anything else — including "yes" and
-"تمام" — cancels it and says why.
-
-Which writes those are is decided from the tool **and its arguments**
-(`tools.is_destructive`), because the same tool can be either: moving a task to
-`in_progress` is ordinary work, moving it to `cancelled` is the closest thing to
-deleting something this API offers.
-
-| Action | Needs `تأكيد نهائي`? | Why |
-|---|---|---|
-| `decide_version` (approve / request changes) | **yes** | decides on the client's behalf, no undo |
-| `update_task_status` → `cancelled` | **yes** | nearest thing to destroying work here |
-| `update_task_status` → `client_review` | **yes** | the client can see it; can't un-send |
-| `comment_on_task` with `client_visible: true` | **yes** | publishes a line to the client |
-| `update_task_status` → `todo`/`in_progress`/`in_review`/`done` | no | internal, and reversible |
-| `comment_on_task` (internal) | no | cheap to get wrong, cheap to correct |
-| `comment_on_version` | no | highest-frequency write; only *adds* information |
-| `create_task` | no | adds internal work only; a mistake is answered by cancelling it |
-
-The phrase is one constant, `brain.CONFIRM_PHRASE`, used both by the check and
-by the message that asks for it. Write tools must declare which side of the
-line they fall on; anything unclassified is treated as destructive, and a test
-enforces that every write tool has decided.
-
-**Deliberately not gated by role.** Permissions already decide *who may* act
-(`identity.allowed`, plus `approval_rank` enforced server-side by HiMedia). The
-phrase answers a different question — *did you mean it?* — which applies to
-everyone who can do the action, managers included.
-
-**Graceful refusals per role:** a caller whose scope doesn't include a
-tool never sees it offered at all (Layer 1). A caller who somehow gets
-past that — or whose `approval_rank` is too low for a given review
-decision even with `reviews:write` scope — gets a clean refusal from the
-real API (`ApiRefused`, Layer 2), which `agent/brain.py` passes straight
-to the person in their own language. It never retries a different way
-to get around a refusal.
-
-**The leak test** — the adversarial suite the grading explicitly targets:
-
-The suite is split by what it needs, so a missing model key never hides a
-test that would have run without one:
-
+ 
+A few actions are hard to undo or send something straight to a client (approving/rejecting a version, cancelling a task, moving a task to client review, posting a client-visible comment). Those require typing an exact confirmation phrase instead of just "yes". Everything else confirms normally.
+ 
+The agent also refuses cleanly whenever someone asks for something outside their permissions, and never tries to find a workaround. A test suite specifically tries to trick it into leaking one person's data to another (wrong company, wrong role, internal notes, etc.) and every attempt is checked and blocked.
+ 
+## Ask questions about the project documents
+ 
+Separately from the agent above, there's a small tool that answers questions from the project files (handbook, brief, and other docs in `data/docs`).
+ 
+Build the index once (and again whenever a document changes):
+ 
 ```bash
-pytest -q                                            # no network, no key
-RUN_LIVE_TESTS=1 pytest -q                           # + the live sandbox
-RUN_LIVE_TESTS=1 pytest tests/test_leak_live.py -v -s   # + a model key
+python -m src.rag.main ingest
 ```
-
-| Layer | File | Needs |
-|---|---|---|
-| Filtering, against a fake sandbox | `test_leak_regressions.py` | nothing |
-| The data layer, against real data | `test_leak_data_live.py` | sandbox |
-| Tenant isolation, Ch. 20's numbers | `test_isolation_live.py` | sandbox |
-| `client_visible` proof, Ch. 19 | `test_comment_visibility_live.py` | sandbox |
-| The seven attack messages, end to end | `test_leak_live.py` | sandbox + model |
-
-The forbidden-word list is not hardcoded alone. `tests/seed_forbidden.py`
-keeps the handbook's fixed seven and adds to them, live: everything other
-people can see that this caller cannot. Fixed floor, derived on top, so the
-list can neither rot into a guess nor lose the seven it must always catch:
-
+ 
+Then ask a question:
+ 
 ```bash
-python -m tests.seed_forbidden      # prints the before/after table
+python -m src.rag.main query "What does an editor's role allow?"
 ```
-
-That derivation is per caller, which is what stops a correct answer being
-flagged: Bank of Salam is genuinely a client of Manara Studios (Ch. 7), so
-`Manara` drops off the list for Fatima while staying on it for Hussain Media
-staff. The next section sets out exactly how.
-
-### Two lists, and neither is dropped
-
-**The floor** is the handbook's seven (Ch. 30) — `Khalid`, `Batelco`,
-`invoice`, `v3`, `internal`, `Manara`, `1,400`. Fixed, never derived, so it
-catches its seven even if the demo data changes underneath us.
-
-**The derived set** is everything other people can see that this caller
-cannot, pulled live. It adapts to the data and catches the real staff names
-and internal task titles the handbook's seven never mention.
-
-The list is **per caller**, because one word genuinely differs by audience.
-`Manara` is forbidden for Hussain Media staff — a competitor's work must never
-appear in their answers — but not for Fatima, who is Manara's client too. A
-single global list cannot express that, so `floor_for()` reports what it drops
-and why rather than dropping it silently.
-
-`internal` is an ordinary English word and *will* fire on innocent replies.
-It stays: it is on the handbook's list, and for a leak test a false alarm is
-the safe direction to be wrong in.
-
-The derived half compares against **three** pairs of eyes, not one:
-
-| Phone | Who | Why they matter |
-|---|---|---|
-| +97333000003 | editor @ Hussain Media | the main internal world |
-| +97333000030 | client_approver @ Batelco | Ch. 20 — must see *zero* of Bank of Salam's work |
-| +97333000011 | editor @ Manara Studios | Ch. 9 — her one task must never surface |
-
-Deriving from Khalid alone was blind by construction: anything **neither** he
-nor Fatima could see never entered the comparison. Adding Rashid and Hala
-caught Manara's deliverable, which is invisible to both.
-
-### The list never reaches disk or stdout
-
-The forbidden list *is* staff-only data. Ch. 33 asks for test output in the
-README, so a run that printed a staff member's full name next to the word
-`LEAKED` would itself be the leak it exists to prevent. Therefore: nothing is ever cached to a file, and
-every value that reaches a report or an assertion message is masked to its
-first two characters (`seed_forbidden.mask`). To see a value in full, run the
-test locally.
-
-### Proof the regression tests actually regress
-
-A test that passes when its fix is removed is testing nothing. Each fix was
-removed in turn and the matching test re-run:
-
-```
-test                                                        fix removed   fix present
--------------------------------------------------------------------------------------
-test_leak_review_notes_on_another_clients_version           failed        passes
-test_leak_staff_name_in_review_note_author                  failed        passes
-test_leak_internal_comment_on_a_version                     failed        passes
-test_leak_published_to_client_flag_shown_to_a_client        failed        passes
-test_leak_internal_task_comment_reaches_a_client            failed        passes
-test_leak_task_notes_on_an_internal_task                    failed        passes
-test_leak_cross_company_write_is_not_policed_by_the_api     failed        passes
-test_leak_write_preview_echoes_an_invisible_row             failed        passes
-test_leak_held_write_runs_after_permission_is_lost          failed        passes
-test_leak_stale_held_write_still_runs                       failed        passes
-test_leak_caller_phone_can_be_overridden_by_tool_arguments  failed        passes
-test_leak_staff_assignee_name_on_the_clients_own_task       failed        passes
-```
-
-Which leak each one closes:
-
-| Test | The fix it guards |
-|---|---|
-| `review_notes_on_another_clients_version` | visibility gate on a by-id read |
-| `staff_name_in_review_note_author` | a client is told which *side* spoke, never who |
-| `internal_comment_on_a_version` | `client_visible: false` notes dropped for clients |
-| `published_to_client_flag_shown_to_a_client` | internal bookkeeping stays staff-only |
-| `internal_task_comment_reaches_a_client` | `client_visible_only` set from the caller's audience |
-| `task_notes_on_an_internal_task` | visibility gate before reading a task by id |
-| `cross_company_write_is_not_policed_by_the_api` | gate on every write; the sandbox does not check company on `PATCH /v1/tasks/{id}` |
-| `write_preview_echoes_an_invisible_row` | the preview is an answer too, so it is gated |
-| `held_write_runs_after_permission_is_lost` | permissions re-checked when the write runs |
-| `stale_held_write_still_runs` | a held write expires |
-| `caller_phone_can_be_overridden_by_tool_arguments` | the phone comes from `person`, never `args` |
-| `staff_assignee_name_on_the_clients_own_task` | `?phone=` filters rows, not fields |
-
-### What this testing does NOT catch
-
-Word matching is the floor of leak detection, not the ceiling. A reply that
-says *"your editor"* instead of `Khalid`, or *"twelve days overdue"* instead
-of `1,400`, passes every check in this repo and is still a leak. So is a reply
-that confirms something exists without naming it — *"there is a version you
-cannot see yet"* tells the client exactly what Ch. 2 says they must never
-learn.
-
-We have not tried to build semantic leak detection, and would not trust one we
-wrote in a fortnight. The mitigation is structural rather than textual: the
-forbidden values are filtered out in `agent/tools.py` **before the prompt is
-built**, so the model is never in a position to paraphrase what it was never
-given. The word check is a backstop that proves that filtering held — it is
-not the thing doing the protecting.
-
-**Timing per stage** (`audit.log_stage`) goes to the same log: each model
-round, each tool call, `identity.who_is` with cache hit or miss, rounds used
-out of `MAX_ROUNDS`, and the total per message, each tagged `ar` or `en`.
-`python -m tests.measure_latency` sends five matched Arabic and English
-messages and prints the comparison.
-
-**Every tool call is logged** (`agent/audit.py`) to `audit.log` — who
-asked, which tool, with what arguments, what came back, how long it
-took, whether it was allowed or refused. This is the trace record for
-debugging and for the conversation-log submission requirement.
-
-## Phase 4 — WhatsApp and Ship
-
-**Gate:** a real phone messages the agent and gets a correct answer.
-Someone outside the team clones the repo, follows this README, and runs
-it.
-
-### Connect WhatsApp (Chapter 28)
-
-1. Go to `developers.facebook.com`, log in, **My Apps → Create App**
-   (Business type).
-2. Find **WhatsApp** on the app dashboard, click **Set up** — lands on
-   API Setup. Copy the temporary access token, Phone number ID, and test
-   From number into `.env` (`WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`).
-3. Under **To**, add your own number and teammates' numbers as test
-   recipients — each confirms via a WhatsApp code.
-4. Start the server and a tunnel:
-   ```bash
-   uvicorn agent.whatsapp:app --reload --port 8000
-   ngrok http 8000   # separate terminal
-   ```
-5. In the dashboard's **WhatsApp → Configuration**, set the Callback URL
-   to `https://<your-ngrok-domain>/whatsapp` and the Verify token to
-   whatever you put in `WHATSAPP_VERIFY_TOKEN`. Click Verify and save,
-   then subscribe to the `messages` field.
-
-**Known gotchas (Chapter 28):** the temporary access token expires after
-24 hours — get a fresh one from API Setup, or set up a permanent System
-User token once this stops being annoying. The ngrok URL changes on
-every free-plan restart — update the Callback URL each time.
-
-### Demo
-
+ 
+Or run `python -m src.rag.main` with no arguments to ask questions in a loop.
+ 
+## Running the chat interface
+ 
 ```bash
-python -m agent.demo
+uvicorn agent.web:app --reload --port 8000
+# in a second terminal:
+cd react && npm install && npm run dev
 ```
-
-Scripted, non-interactive walkthrough: the Phase 1 roster, the
-internal-vs-client isolation proof, and the same kind of question asked
-by three different people with real answers printed. Safe to run live —
-each section is wrapped so one failure doesn't take down the rest.
-
-For live audience questions during the actual 7-minute demo, hand off to
-`python -m agent.cli` (or a real WhatsApp message) so someone can ask
-something unscripted.
-
+ 
+Open the address Vite prints (normally `http://localhost:5173`). Keep the `uvicorn` server running, since the UI talks to it.
+ 
 ## Tests
-
+ 
 ```bash
-pytest -v                        # pure-logic tests, no network needed
-RUN_LIVE_TESTS=1 pytest -v -s    # + live tests against the real sandbox/model
+pytest -v                        # no network needed
+RUN_LIVE_TESTS=1 pytest -v -s    # + real sandbox and model
 ```
-
-| File | What it covers | Needs network? |
-|---|---|---|
-| `test_identity.py` | phone normalization | no |
-| `test_tools_filtering.py` | catalogue filtering, all 11 tools, fabricated permission payloads | no |
-| `test_confirmation_flow.py` | hold/confirm/cancel logic, stubbed tool (no real write) | no |
-| `test_leak_regressions.py` | one test per leak fixed, against a fake sandbox | no |
-| `test_exact_phrase_confirmation.py` | the exact-phrase gate on `decide_version` | no |
-| `test_device_verification.py` | first-device one-time code, and the unknown-number refusal that must never become one | no |
-| `test_memory.py`, `test_audit.py`, `test_himedia.py`, `test_whatsapp.py` | history, logging, API wrapper, webhook | no |
-| `test_correctness_live.py` | Chapter 30 correctness checklist, real people | **yes** |
-| `test_leak_live.py` | adversarial leak suite — 30% of the grade | **yes** |
-| `test_comment_visibility_live.py` | settles the `client_visible` question in `QUESTIONS.md` | **yes** |
-
-`test_leak_regressions.py` is the offline half of the leak work: it replaces
-the sandbox with a fake that deliberately returns more than the caller should
-see, so a missing filter fails the test. It runs on a plain `pytest`, with no
-network and no model key — a leak test that needs neither is a leak test that
-actually gets run.
-
-This build environment cannot reach the sandbox, so the two live files
-have been written correctly against the documented API and model but not
-executed here — **run them for real** and save the output for
-submission.
-
+ 
 ## What's not finished
-
-Explicitly out of scope for the two-week capstone, not oversights:
-
-- **A phone number is only as trustworthy as the handset.** Identity is the
-  one thing every permission decision keys off: `who_is()` turns a number into
-  a person, and everything the agent will say follows from that. But a sender
-  ID can be faked, a SIM can be swapped, and a phone gets handed to a colleague
-  — so anyone holding Khalid's number inherits Khalid's five tasks.
-
-  **What we built.** A first-device check in `agent/identity.py::device_gate`.
-  The order of its two checks is the whole point:
-
-  | Who is asking | What happens |
-  |---|---|
-  | Number we don't recognise | The flat refusal, and nothing else. No code, no hint that we looked anything up. |
-  | Known number, device we've never seen | A six-digit one-time code, then the device is remembered. |
-  | Known number, remembered device | Straight through, no friction. |
-
-  A stranger is never sent a code. Telling someone we have issued them one
-  confirms both that the system exists and that we are processing them — worse
-  security than saying no, and it would fail the "unknown number → polite
-  refusal, nothing leaked" case outright. That ordering is pinned by
-  `tests/test_device_verification.py`, including end to end through the
-  WhatsApp entry point.
-
-  **What is not finished, honestly.** Two things.
-
-  The code is written to the server log, because there is no mail service
-  wired up here. A production version sends it to the address already on the
-  person's HiMedia record — **out of band, never back down the same WhatsApp
-  thread**, since whoever holds the number would simply read it there. That
-  single detail is what makes the check worth anything.
-
-  And the record of verified devices lives in a module-level set in
-  `identity.py`, in process. **Restarting the server forgets every verified
-  device and everyone is challenged again.** That is the same accepted
-  limitation as the conversation memory, and acceptable for a two-week
-  capstone — but in production it belongs in durable storage, with a way to
-  revoke a device centrally when a handset is lost.
-
-- **No persistent memory or durable storage.** `agent/memory.py` is a
-  plain dict — restarting the server forgets every conversation and any
-  pending confirmation.
-- **Confirmation-word matching is a fixed list**
-  (`AFFIRMATIVE`/`NEGATIVE` in `agent/brain.py`), not model-interpreted
-  intent.
-
-## The browser interface
-
-A third way in, next to the CLI and the WhatsApp webhook, and the same agent
-behind all three. `agent/web.py` is thin in exactly the way `whatsapp.py` is
-thin: it turns a request into `(phone, text)`, calls `identity.device_gate`
-and then `brain.reply_to` in that order, and returns what comes back.
-
-```bash
-uvicorn agent.web:app --reload --port 8000   # from this folder
-cd react && npm install && npm run dev       # then http://localhost:5173
-```
-
-What it adds over the CLI is streaming: `brain.reply_to` already reports
-"Thinking…" and "Calling `list_tasks`…" through `on_status`, and the API
-forwards each one as a server-sent event, so the browser shows a tool call
-while it is happening rather than after the reply. The permission filter, the
-device challenge and the confirmation gate are all drawn on screen. Full
-notes in [react/README.md](react/README.md).
-
-There is no password on that API and it binds to localhost: it is a
-development front end for a sandbox, and anyone who can reach it can be any
-of the thirteen people.
-
+ 
+- **Device trust is basic.** A new phone/device gets a one-time code before it's trusted; after that, anyone holding that number is treated as that person. The code is currently written to the server log rather than sent out of band.
+- **No persistent storage.** Conversation history and pending confirmations live in memory, so restarting the server clears them.
+- **Confirmation matching is a fixed word list** ("yes"/"no" and a few variants), not full language understanding.
 ## Project layout
-
+ 
 ```
 agent/
-  config.py      # reads .env
-  himedia.py     # the only file that knows the sandbox exists
-  identity.py    # phone -> person, live permissions, 60s cache
-  roster.py      # Phase 1 gate script
-  explore.py     # Phase 1 API-exploration script
-  audit.py       # Phase 3/4: logs every tool call
-  tools.py       # 9-tool catalogue (5 read, 4 write) + filtering + previews
-  memory.py      # conversation history + pending-write state
-  brain.py       # the agent loop, confirm-before-write flow
-  whatsapp.py    # webhook verify/receive/send — thin, no logic of its own
-  web.py         # HTTP API for the browser UI — thin, in the same way
-  cli.py         # terminal test harness
-  demo.py        # scripted Phase 1+2 walkthrough
-react/           # the browser chat interface (React + Vite) — see react/README.md
-tests/
-  test_identity.py            # pure logic
-  test_tools_filtering.py      # pure logic — all 11 tools
-  test_confirmation_flow.py     # pure logic — hold/confirm/cancel
-  test_correctness_live.py       # real API + real model
-  test_leak_live.py               # real API + real model — the 30% gate
-PERMISSIONS.md   # tenant-isolation rules, confirmed live
-QUESTIONS.md     # running log for office hours / client check-in
-TEAM.md          # ownership + conventions
+  config.py, himedia.py, identity.py   # config, API wrapper, phone -> person + permissions
+  roster.py, explore.py                # look-around scripts
+  tools.py, memory.py, brain.py        # tool catalogue, conversation state, agent loop
+  web.py                               # the live chat entry point
+  cli.py, demo.py                      # terminal harness + scripted walkthrough
+react/                                  # the browser chat UI (React + Vite)
+src/rag/
+  ingest.py, query.py, main.py         # document Q&A: build index, ask questions
+data/docs/                              # handbook, brief, and other source documents
+tests/                                  # pytest suite, including the leak-prevention tests
+.env.example
+requirements.txt
 ```
+ 
 
-## Submission checklist (Chapter 33)
-
-- [x] Python code, roughly this layout
-- [x] `requirements.txt`
-- [x] `.env.example`, blank values, real `.env` never committed
-- [x] `README.md` — this file
-- [ ] Test list + output — run `pytest -v`, save output
-- [ ] Leak test + output — run `RUN_LIVE_TESTS=1 pytest tests/test_leak_live.py -v -s`, save output
-- [ ] A saved conversation log from a real WhatsApp exchange, showing every tool call (pull from `audit.log`)
-
-Before submitting: `git log -p | grep -i -E "api[_-]?key|sk-|OPENAI|WHATSAPP"`
-— should show only variable names/comments, never a real key value.

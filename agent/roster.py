@@ -11,20 +11,21 @@ from . import himedia, identity
 
 
 # Seeded users used for testing the API.
-PHONES = [
-    "+97333000001",  # Ahmed Al-Dosari
-    "+97333000002",  # Sara Al-Ansari
-    "+97333000003",  # Khalid Mansoor
-    "+97333000004",  # Noor Habib
-    "+97333000005",  # Layla Ebrahim
-    "+97333000006",  # Yusuf Rashed
-    "+97333000007",  # Maryam Salman
-    "+97333000010",  # Omar Al-Sayed
-    "+97333000011",  # Hala Jassim
-    "+97333000020",  # Fatima Al-Kooheji
-    "+97333000021",  # Ali Hasan
-    "+97333000022",  # Dana Fakhro
-    "+97333000030",  # Rashid Buali
+
+PHONES = [ 
+    "+97333000001", # Ahmed Al-Dosari, owner — Hussain Media 
+    "+97333000002", # Sara Al-Ansari, supervisor — Hussain Media 
+    "+97333000003", # Khalid Mansoor, editor — Hussain Media 
+    "+97333000004", # Noor Habib, photographer — Hussain Media 
+    "+97333000005", # Layla Ebrahim, account_manager — Hussain Media 
+    "+97333000006", # Yusuf Rashed, accountant — Hussain Media 
+    "+97333000007", # Maryam Salman, company_director — Hussain Media 
+    "+97333000010", # Omar Al-Sayed, owner — Manara Studios 
+    "+97333000011", # Hala Jassim, editor — Manara Studios 
+    "+97333000020", # Fatima Al-Kooheji, client_approver — Bank of Salam 
+    "+97333000021", # Ali Hasan, client_reviewer — Bank of Salam 
+    "+97333000022", # Dana Fakhro, client_owner — Bank of Salam 
+    "+97333000030", # Rashid Buali, client_approver — Batelco 
 ]
 
 

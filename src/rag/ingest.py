@@ -10,7 +10,7 @@ import tiktoken
 from langchain_chroma import Chroma
 from langchain_community.document_loaders import (
     Docx2txtLoader,
-    PyPDFLoader,
+    PyPDFium2Loader,  # Updated to the robust loader
     TextLoader,
 )
 from langchain_core.documents import Document
@@ -41,12 +41,18 @@ def load_documents(data_dir: str) -> List[Document]:
     folder = Path(data_dir)
 
     for path in sorted(folder.glob("**/*")):
-        if path.suffix.lower() == ".pdf":
-            docs.extend(PyPDFLoader(str(path)).load())
-        elif path.suffix.lower() == ".docx":
-            docs.extend(Docx2txtLoader(str(path)).load())
-        elif path.suffix.lower() in (".md", ".txt"):
-            docs.extend(TextLoader(str(path), encoding="utf-8").load())
+        try:
+            if path.suffix.lower() == ".pdf":
+                # Using PyPDFium2Loader handles broken pointers smoothly
+                docs.extend(PyPDFium2Loader(str(path)).load())
+            elif path.suffix.lower() == ".docx":
+                docs.extend(Docx2txtLoader(str(path)).load())
+            elif path.suffix.lower() in (".md", ".txt"):
+                docs.extend(TextLoader(str(path), encoding="utf-8").load())
+        except Exception as e:
+            print(f"\n Skipping corrupted file: {path.name}")
+            print(f"   Reason: {e}\n")
+            continue
 
     return docs
 
