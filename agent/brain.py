@@ -57,7 +57,7 @@ def _client() -> OpenAI:
     return _ai_client
 
 
-def _system_prompt(person: dict) -> str:
+def _system_prompt(person: dict, language: str) -> str:
     name = person["user"]["full_name"]
     role = person["role"].get("name") or person["role"]["key"]
     company = person["company"]["name"]
@@ -77,8 +77,9 @@ def _system_prompt(person: dict) -> str:
 
     return (
         f"You are the HiMedia WhatsApp agent. You are talking to {name}, {role} at "
-        f"{company}. {voice} Reply in the same language the person just used (Arabic or "
-        "English) — people switch languages mid-conversation, detect it per message. "
+        f"{company}. {voice} "
+        f"Reply ONLY in {'Arabic' if language == 'ar' else 'English'} for this message. "
+        "People switch languages mid-conversation, so detect the language per message. "
         "When replying in Arabic, use natural, clear Bahraini Arabic with a professional "
         "and conversational tone. Use Bahraini dialect naturally where appropriate, but "
         "do not overuse slang or force dialect. Keep technical and production terms clear "
@@ -156,7 +157,7 @@ def reply_to(person: dict, message: str, phone: str, on_status: Callable[[str], 
     tools = tools_for(person)
     by_name = {t["function"]["name"]: t for t in tools}
 
-    messages = [{"role": "system", "content": _system_prompt(person)}]
+    messages = [{"role": "system", "content": _system_prompt(person, language)}]
     messages += memory.history_for(phone)
     messages.append({"role": "user", "content": message})
 
