@@ -153,7 +153,10 @@ def reply_to(person: dict, message: str, phone: str, on_status: Callable[[str], 
     pending = memory.peek_pending(phone)
 
     if pending is not None:
-        return _finish(_handle_pending_reply(person, phone, message, pending, language), 0)
+        return _finish(
+            _handle_pending_reply(person, phone, message, pending, language),
+            0,
+        )
 
     tools = tools_for(person)
     by_name = {t["function"]["name"]: t for t in tools}
@@ -181,8 +184,17 @@ def reply_to(person: dict, message: str, phone: str, on_status: Callable[[str], 
             )
 
         except RateLimitError:
-            _log(person, phone, "gemini.chat.completions", {}, "rate_limited", 0.0, False)
+            _log(
+                person,
+                phone,
+                "gemini.chat.completions",
+                {},
+                "rate_limited",
+                0.0,
+                False,
+            )
             return _finish(_quota_message(language), round_number)
+
         messages.append(answer)
 
         if not answer.tool_calls:
@@ -198,14 +210,30 @@ def reply_to(person: dict, message: str, phone: str, on_status: Callable[[str], 
             if tool is None:
                 bad_args = json.loads(call.function.arguments or "{}")
                 out = {"error": "That tool is not available to you."}
-                _log(person, phone, call.function.name, bad_args, out, 0.0, False)
+                _log(
+                    person,
+                    phone,
+                    call.function.name,
+                    bad_args,
+                    out,
+                    0.0,
+                    False,
+                )
 
             elif tool["writes"]:
                 args = json.loads(call.function.arguments or "{}")
 
                 if not may_act_on(person, args):
                     out = NOT_YOURS
-                    _log(person, phone, tool["function"]["name"], args, out, 0.0, False)
+                    _log(
+                        person,
+                        phone,
+                        tool["function"]["name"],
+                        args,
+                        out,
+                        0.0,
+                        False,
+                    )
                     messages.append({
                         "role": "tool",
                         "tool_call_id": call.id,
@@ -230,13 +258,22 @@ def reply_to(person: dict, message: str, phone: str, on_status: Callable[[str], 
 
                 # Ask for confirmation in the same language as the current message.
                 if needs_exact_phrase(tool["function"]["name"], args):
-                    ask = (
-                        f"{preview}.\n"
-                        f"للتأكيد اكتب «{CONFIRM_PHRASE}» بالضبط. "
-                        f"(to confirm, reply with exactly: {CONFIRM_PHRASE})"
-                    )
+                    if language == "ar":
+                        ask = (
+                            f"{preview}.\n"
+                            f"للتأكيد اكتب «{CONFIRM_PHRASE}» بالضبط."
+                        )
+                    else:
+                        ask = (
+                            f"{preview}.\n"
+                            f"To confirm, reply with exactly: {CONFIRM_PHRASE}"
+                        )
                 else:
-                    ask = f"{preview}. تأكيد؟ (confirm?)"
+                    if language == "ar":
+                        ask = f"{preview}. تأكيد؟"
+                    else:
+                        ask = f"{preview}. Confirm?"
+
                 return _finish(ask, round_number)
 
             else:
@@ -250,7 +287,15 @@ def reply_to(person: dict, message: str, phone: str, on_status: Callable[[str], 
                         out = {"refused": e.code, "reason": e.message}
                         ok = False
 
-                _log(person, phone, tool["function"]["name"], args, out, t.elapsed_ms, ok)
+                _log(
+                    person,
+                    phone,
+                    tool["function"]["name"],
+                    args,
+                    out,
+                    t.elapsed_ms,
+                    ok,
+                )
 
                 audit.log_stage(
                     phone=phone,
@@ -269,6 +314,7 @@ def reply_to(person: dict, message: str, phone: str, on_status: Callable[[str], 
         fallback = "ما قدرت أكمل الطلب. جرّب تسأل بطريقة ثانية."
     else:
         fallback = "I couldn't complete that request. Try asking a different way."
+
     return _finish(fallback, MAX_ROUNDS)
 
 
