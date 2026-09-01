@@ -1,18 +1,4 @@
-"""Creating a task (Chapters 25-26, and the Phase 3 write rules).
-
-The API will create a task in ANY project you name — it does not check the
-caller's company on a write, the same hole every other write here is gated
-against. So the rule this file pins down is:
-
-    project the caller can see     -> created
-    project the caller cannot see  -> refused, and nothing is written
-
-It also pins the two fields the endpoint accepts but this tool deliberately
-does not expose. `status` and `client_visible` both reach the client the
-moment the task exists, and neither belongs in a first ask.
-
-Written by Reem. No network: the sandbox is faked.
-"""
+"""Tests for creating tasks and project access."""
 import pytest
 
 from agent import himedia, tools
@@ -24,12 +10,11 @@ THEIRS = "prj_theirs"
 
 @pytest.fixture
 def sandbox(monkeypatch):
-    """A fake sandbox that records what was written."""
+    """Fake sandbox for testing writes."""
     written = []
 
     def list_projects(phone=None, status=None):
-        # Only ever one project for this caller. THEIRS belongs to someone else
-        # and never appears, which is exactly the point.
+        # Only return the caller's project
         return [{"id": MINE, "name": "Ramadan Campaign", "status": "active"}]
 
     def create_task(**kwargs):
@@ -60,7 +45,7 @@ def _client():
             "counts": {}}
 
 
-# --- the gate ---------------------------------------------------------------
+# Task access checks
 
 
 def test_a_task_is_created_in_a_project_the_caller_can_see(sandbox):
@@ -72,7 +57,7 @@ def test_a_task_is_created_in_a_project_the_caller_can_see(sandbox):
 
 
 def test_a_project_the_caller_cannot_see_is_refused_and_nothing_is_written(sandbox):
-    """The load-bearing one. The API would happily create it."""
+    """Reject inaccessible projects without writing."""
     out = tools.run_create_task(_staff(), {"title": "Cut the teaser", "project_id": THEIRS})
 
     assert out == tools.NOT_YOURS
@@ -85,7 +70,7 @@ def test_the_refusal_does_not_confirm_the_project_exists(sandbox):
     assert THEIRS not in str(out)
 
 
-# --- what the model is not allowed to set -----------------------------------
+# Restricted task fields
 
 
 def test_client_visible_cannot_be_smuggled_through_the_arguments(sandbox):
@@ -96,8 +81,7 @@ def test_client_visible_cannot_be_smuggled_through_the_arguments(sandbox):
 
 
 def test_status_cannot_be_smuggled_through_the_arguments(sandbox):
-    """A task created straight into client_review would reach the client with
-    no confirmation of any kind."""
+    """Status should not be passed through."""
     tools.run_create_task(_staff(), {"title": "x", "project_id": MINE,
                                      "status": "client_review"})
 
@@ -113,7 +97,7 @@ def test_the_schema_offered_to_the_model_forbids_both_fields():
     assert "status" not in params["properties"]
 
 
-# --- how it sits in the catalogue -------------------------------------------
+# Tool catalogue checks
 
 
 def test_it_is_a_write_so_it_is_never_run_on_the_first_ask():
@@ -135,8 +119,7 @@ def test_it_is_never_offered_to_a_client():
 
 
 def test_it_keeps_the_ordinary_yes_no_rather_than_the_typed_phrase():
-    """It only adds internal work, and a task filed by mistake is cancelled.
-    Gating it behind the phrase would be the muscle-memory problem."""
+    """Creating a task uses normal confirmation."""
     assert tools.is_destructive("create_task", {"title": "x", "project_id": MINE}) is False
 
 

@@ -5,21 +5,9 @@ from __future__ import annotations
 from . import himedia
 from .identity import allowed, is_client, phone_of
 
-# Check whether the user can access a specific item.
+# Check access to a specific item.
 
-# Approving a client deliverable is not the same act as commenting on one,
-# and the live data says so: every role carries an approval_rank, 1 for an
-# editor or photographer, 2 for a supervisor, 3 for a director. Until now
-# nothing read it, so an editor was offered "approve this version" exactly
-# like the director — the two looked identical because the only difference
-# between them was the field nobody checked.
-#
-# We block the rank the data explicitly calls lowest, and no more than that.
-# A role with no rank at all (an owner, an account manager) keeps the tool:
-# inventing a rule for roles the API does not rank would be hardcoding around
-# the live map, which is the one thing Ch. 10 says never to do. The API is
-# still the authority on which stage a given rank may decide; this is a floor
-# under it, not a replacement for it.
+# Approval requires a higher role rank than commenting.
 MIN_APPROVAL_RANK = 2
 
 
@@ -69,7 +57,7 @@ def run_who_am_i(person: dict, args: dict) -> dict:
 
 def run_list_tasks(person: dict, args: dict) -> list[dict]:
     tasks = himedia.list_tasks(
-        phone=phone_of(person),                  # never args
+        phone=phone_of(person),                  # always use the caller
         status=args.get("status"),
         open_only=args.get("open_only", True),
     )["data"]
@@ -93,7 +81,7 @@ def run_list_projects(person: dict, args: dict) -> list[dict]:
 
 def run_list_versions(person: dict, args: dict) -> list[dict]:
     versions = himedia.list_versions(
-        phone=phone_of(person),                  # never args
+        phone=phone_of(person),                  # always use the caller
         project_id=args.get("project_id"),
         state=args.get("state"),
     )
@@ -104,9 +92,7 @@ def run_list_versions(person: dict, args: dict) -> list[dict]:
         row = {
             "id": v["id"], "version_no": v.get("version_no"), "state": v.get("state"),
         }
-        # published_to_client is always true in what a client gets back, so for
-        # them it is noise; for staff it is the difference between "the client
-        # is waiting on this" and "the client cannot see it".
+        # Clients do not need this internal field.
         if not client:
             row["published_to_client"] = v.get("published_to_client")
         rows.append(row)
@@ -123,7 +109,7 @@ def run_get_review_notes(person: dict, args: dict):
     )
     client = is_client(person)
     if client:
-        # Hide explicitly internal comments from clients.
+        # Hide internal comments from clients.
         notes = [n for n in notes if n.get("client_visible") is not False]
     return [
         {
@@ -170,7 +156,7 @@ def run_create_task(person: dict, args: dict) -> dict:
     check company on a write, so without this a staff member could file a task
     into another company's project just by naming its id.
 
-    Deliberately narrow. The model may set a title, a project, a priority, a
+    Deliberately narrow. The model may set a title, a project, a priority,
     due date and a description. It may NOT set `status` or `client_visible`,
     which the endpoint would accept: either one reaches the client the moment
     the task exists, and that is not something to do on a first ask. Making a
@@ -211,7 +197,7 @@ def run_comment_on_task(person: dict, args: dict) -> dict:
     himedia.add_task_comment(
         task_id,
         body=args["body"],
-        author_phone=phone_of(person),           # never args
+        author_phone=phone_of(person),           # always use the caller
         client_visible=args.get("client_visible", False),
     )
     return {"posted": True, "task_id": task_id}
@@ -225,7 +211,7 @@ def run_comment_on_version(person: dict, args: dict) -> dict:
     himedia.add_version_comment(
         version_id,
         body=args["body"],
-        author_phone=phone_of(person),           # never args
+        author_phone=phone_of(person),           # always use the caller
         timecode_seconds=args.get("timecode_seconds"),
     )
     return {"posted": True, "version_id": version_id}
@@ -233,14 +219,14 @@ def run_comment_on_version(person: dict, args: dict) -> dict:
 
 def run_decide_version(person: dict, args: dict) -> dict:
     version_id = args["version_id"]
-    # Verify that the version belongs to the user's visible data.
+    # Check that the version is visible to the user.
     if version_id not in _visible_version_ids(person):
         return NOT_YOURS
 
     himedia.decide_version(
         version_id,
         decision=args["decision"],
-        actor_phone=phone_of(person),            # never args
+        actor_phone=phone_of(person),            # always use the caller
         note=args.get("note"),
     )
     return {"version_id": version_id, "decision": args["decision"]}
@@ -359,9 +345,7 @@ ALL_TOOLS: list[dict] = [
         "needs": ("tasks", "write"),
         "audience": "internal",
         "writes": True,
-        # Only adds work, and adds it internally: no client can see it, and a
-        # task filed by mistake is answered by cancelling it. Not a point of no
-        # return, so it keeps the ordinary yes/no.
+        # Internal task only; not a point of no return.
         "destructive": False,
         "run": run_create_task,
     },
@@ -391,8 +375,7 @@ ALL_TOOLS: list[dict] = [
         "needs": ("tasks", "write"),
         "audience": "internal",
         "writes": True,
-        # Harmless moving a task to todo or in_progress; a point of no return
-        # moving it to client_review (the client sees it) or cancelled.
+        # Stronger confirmation for client-visible or cancelled tasks.
         "destructive": _status_is_final,
         "run": run_update_task_status,
     },
@@ -422,7 +405,7 @@ ALL_TOOLS: list[dict] = [
         "needs": ("tasks", "write"),
         "audience": "internal",
         "writes": True,
-        # Stronger confirmation if the client can see the comment.
+        # Stronger confirmation when the client can see it.
         "destructive": _comment_reaches_the_client,
         "run": run_comment_on_task,
     },
@@ -551,7 +534,7 @@ ALL_TOOLS: list[dict] = [
         "needs": ("reviews", "write"),
         "audience": "both",
         "writes": True,
-        # Version comments are reversible by adding another comment.
+        # Version comments are reversible.
         "destructive": False,
         "run": run_comment_on_version,
     },
@@ -580,9 +563,9 @@ ALL_TOOLS: list[dict] = [
         "needs": ("reviews", "write"),
         "audience": "both",
         "writes": True,
-        # Scope says who may touch reviews at all; rank says who may end one.
+        # Rank limits who can end a review.
         "min_rank": MIN_APPROVAL_RANK,
-        # Always requires stronger confirmation.
+        # Always needs stronger confirmation.
         "destructive": True,
         "run": run_decide_version,
     },
@@ -645,16 +628,16 @@ def describe(tool_name: str, args: dict) -> str:
     """Creates a readable preview of a pending action.
     person before anything actually happens."""
     if tool_name == "create_task":
-        return (f"Create task \u201c{args.get('title', '')}\u201d "
+        return (f"Create task “{args.get('title', '')}” "
                 f"in project {args.get('project_id')}")
     if tool_name == "update_task_status":
         return f"Move task {args.get('task_id')} to '{args.get('status')}'"
     if tool_name == "comment_on_task":
-        return f"Post on task {args.get('task_id')}: \u201c{args.get('body', '')}\u201d"
+        return f"Post on task {args.get('task_id')}: “{args.get('body', '')}”"
     if tool_name == "comment_on_version":
         at = f" at {args['timecode_seconds']}s" if args.get("timecode_seconds") is not None else ""
-        return f"Post on version {args.get('version_id')}{at}: \u201c{args.get('body', '')}\u201d"
+        return f"Post on version {args.get('version_id')}{at}: “{args.get('body', '')}”"
     if tool_name == "decide_version":
-        note = f" \u2014 \u201c{args['note']}\u201d" if args.get("note") else ""
+        note = f" — “{args['note']}”" if args.get("note") else ""
         return f"{args.get('decision')} version {args.get('version_id')}{note}"
     return f"{tool_name}({args})"

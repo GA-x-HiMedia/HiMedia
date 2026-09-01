@@ -1,26 +1,6 @@
 """
-HTTP API for the React chat interface. Run with:
-
-    uvicorn agent.web:app --reload --port 8000
-
-Thin, in the same way whatsapp.py is thin (Chapter 22): it turns an HTTP
-request into (phone, text), calls the same two functions the WhatsApp path
-calls, in the same order, and returns what comes back. No conversation
-logic, no permission logic, and no second copy of the device gate.
-
-    person = identity.who_is(phone)
-    gate   = identity.device_gate(person, phone, text)   <- unknown / new device
-    reply  = brain.reply_to(person, text, phone, on_status=...)
-
-The one thing this file adds that whatsapp.py has no use for is streaming.
-brain.reply_to already reports its progress through on_status — "Thinking…",
-"Calling list_tasks…" — and the CLI prints that on a line that overwrites
-itself. A browser can show the same thing, so /api/chat/stream runs the turn
-on a worker thread and forwards each status straight out as it happens.
-
-Bound to localhost. There is no password on this API: it is a development
-front end for a sandbox, and the moment it is exposed to a network it needs
-one, because anyone who can reach it can be any of the thirteen people.
+HTTP API for the React chat interface.
+Handles chat requests and streaming.
 """
 
 from __future__ import annotations
@@ -46,8 +26,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="HiMedia agent — web")
 
-# The Vite dev server runs on its own port, so the browser treats it as a
-# different origin. Only localhost is listed: this is a dev tool.
+# Allow local Vite development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -60,47 +39,24 @@ app.add_middleware(
 
 MAX_MESSAGE = 2000
 
-# The sign-in directory lists real people. It exists so a demo can switch
-# between the thirteen seeded identities without typing numbers, which is
-# the whole point of the exercise - but it is still a staff directory, so it
-# can be switched off with HIMEDIA_DEMO_DIRECTORY=0 and must be off anywhere
-# that is not a demo.
+# Demo directory for seeded users
 DEMO_DIRECTORY = os.getenv("HIMEDIA_DEMO_DIRECTORY", "1") != "0"
 
 
 def _require_own_device(raw_phone: str) -> str:
-    """Prove this request comes from the number it claims to be.
-
-    Naming a number is not the same as being that number. Every endpoint
-    that reads or clears ONE person's data goes through here, so an employee
-    cannot type a manager's number and read what they asked the agent - and
-    cannot learn whether the manager uses it at all.
-
-    The device check is the only proof of identity this project has, and it
-    is already how the chat path decides who it is talking to. Reusing it
-    here means there is one answer to "who are you", not two.
-    """
+    """Verify that the device belongs to the number."""
     phone = identity.tidy(raw_phone)
     if not identity.is_trusted_device(phone):
-        # Deliberately the same wording whether or not the number exists, so
-        # a refusal never confirms that somebody is on the system.
+        # Use the same message for unknown numbers
         raise HTTPException(403, "This device has not been verified for that "
                                  "number. Send a message first and answer the "
                                  "verification code.")
     return phone
 
 
-# --- reading a person's state ----------------------------------------------
-
-
+# Read user state
 def _person_or_404(raw_phone: str) -> tuple[dict, str]:
-    """The person behind a number, and the tidy form of that number.
-
-    A number the API does not know is a 404 here rather than a reply, because
-    /api/session is the UI asking "who is this?" — not somebody talking to the
-    agent. The refusal that a stranger actually sees is issued by device_gate,
-    on the chat path, exactly as it is for WhatsApp.
-    """
+    """Get the person and cleaned phone number."""
     try:
         person = identity.who_is(raw_phone)
     except himedia.ApiRefused as refused:
@@ -112,11 +68,7 @@ def _person_or_404(raw_phone: str) -> tuple[dict, str]:
 
 
 def _tool_view(person: dict) -> dict[str, Any]:
-    """Which tools this person is offered, and which were taken away.
-
-    Straight from tools_for — the same call brain.py makes on every single
-    message. The UI only draws this; nothing it sends back can widen it.
-    """
+    """Get the tools available to this person."""
     offered = tools.tools_for(person)
     offered_names = {t["function"]["name"] for t in offered}
 
@@ -128,9 +80,7 @@ def _tool_view(person: dict) -> dict[str, Any]:
             "writes": bool(tool["writes"]),
             "audience": tool["audience"],
             "needs": f"{needs[0]}:{needs[1]}" if needs else None,
-            # True for tools that ALWAYS need the phrase. The ones that decide
-            # per-call (a status that cannot be undone, a comment the client
-            # will see) are marked "sometimes", because that is the truth.
+            # Shows if confirmation is needed
             "destructive": _destructive_label(tool),
             "available": available,
         }
@@ -143,7 +93,7 @@ def _tool_view(person: dict) -> dict[str, Any]:
 
 
 def _destructive_label(tool: dict) -> str:
-    """"no", "yes", or "sometimes" — never a guess."""
+    """"no", "yes", or "sometimes"."""
     if not tool["writes"]:
         return "no"
     verdict = tool.get("destructive", True)
@@ -153,11 +103,7 @@ def _destructive_label(tool: dict) -> str:
 
 
 def _pending_view(phone: str) -> dict[str, Any] | None:
-    """The write waiting on a yes, described the way the person was told it.
-
-    `describe` is the same function brain.py used to write the preview, so the
-    banner in the UI and the sentence in the transcript cannot disagree.
-    """
+    """Get the pending action waiting for confirmation."""
     held = memory.peek_pending(phone)
     if held is None:
         return None
@@ -172,13 +118,11 @@ def _pending_view(phone: str) -> dict[str, Any] | None:
     }
 
 
-# --- endpoints -------------------------------------------------------------
-
+# Endpoints
 
 @app.get("/api/health")
 def health() -> dict[str, Any]:
-    """Which settings actually arrived. Says nothing secret, so it is the
-    first thing to check when the UI will not talk."""
+    """Check API settings."""
     return {
         "ok": True,
         "model": brain.MODEL,
@@ -190,17 +134,7 @@ def health() -> dict[str, Any]:
 
 @app.get("/api/roster")
 def roster() -> dict[str, Any]:
-    """The thirteen seeded people, so the UI can offer a list to sign in as.
-
-    Two API calls, not thirteen — the permission lookup for one person happens
-    in /api/session when they are actually chosen.
-
-    This is a staff directory and it is only here to make the demo
-    switchable. It deliberately does NOT say whether each person has
-    verified a device: that would answer "is my manager using this agent",
-    which nobody is entitled to ask. Set HIMEDIA_DEMO_DIRECTORY=0 to remove
-    the endpoint entirely.
-    """
+    """Get the demo users."""
     if not DEMO_DIRECTORY:
         raise HTTPException(404, "Not found.")
 
@@ -219,8 +153,7 @@ def roster() -> dict[str, Any]:
             "role": user.get("role_key", ""),
             "company": company.get("name", ""),
             "client_side": company.get("kind") == "client_org",
-            # NOT trusted_device: whether someone has verified a device says
-            # whether they use the agent, and that is nobody else's business.
+            # Do not expose device verification
         })
 
     people.sort(key=lambda p: (p["client_side"], p["company"], p["phone"]))
@@ -229,19 +162,15 @@ def roster() -> dict[str, Any]:
 
 @app.post("/api/session")
 def session(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
-    """Sign in as one of them: identity, permissions, offered tools, and
-    whether this device still has to prove itself."""
+    """Return user info and available tools."""
     raw_phone = str(payload.get("phone", "")).strip()
     if not raw_phone:
         raise HTTPException(400, "No phone number given.")
 
-    identity.forget(raw_phone)  # never demo against a stale cache
+    identity.forget(raw_phone)  # Clear old cache
     person, phone = _person_or_404(raw_phone)
 
-    # Identity, role and permissions describe the account and are what the
-    # sign-in screen needs before anyone has proved anything. The transcript
-    # and any half-finished write are private to whoever is holding the
-    # phone, so they are withheld until the device has been verified.
+    # Get private data only after verification
     verified = identity.is_trusted_device(phone)
 
     return {
@@ -254,9 +183,7 @@ def session(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         "locale": person["user"].get("locale", "en"),
         "permissions": person.get("permissions", {}),
         "approval_rank": person["role"].get("approval_rank"),
-        # Workload is live operational data about a person: how much is on their
-        # plate right now. The sign-in screen does not need it, and handing it
-        # over for any number typed in would answer "how busy is my manager".
+        # Show workload only after verification
         "counts": person.get("counts", {}) if verified else {},
         "trusted_device": identity.is_trusted_device(phone),
         "history": memory.history_for(phone) if verified else [],
@@ -267,12 +194,7 @@ def session(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
 
 def _answer(raw_phone: str, message: str,
             on_status=None) -> tuple[dict, str, str]:
-    """One turn, wired exactly as whatsapp.think_and_send wires it.
-
-    Returns (person, phone, reply). The device gate runs first and can end the
-    turn on its own — an unknown number gets the flat refusal and nothing
-    else, a known number on a new device gets the code challenge.
-    """
+    """Handle one chat message."""
     person = identity.who_is(raw_phone)
     phone = identity.tidy(raw_phone)
 
@@ -295,8 +217,7 @@ def _read_request(payload: dict[str, Any]) -> tuple[str, str]:
 
 @app.post("/api/chat")
 def chat(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
-    """One message in, one reply out. No streaming — kept because it is the
-    easy thing to curl when the UI is misbehaving."""
+    """Send one message and get one reply."""
     raw_phone, message = _read_request(payload)
 
     try:
@@ -319,14 +240,7 @@ def _sse(event: str, data: Any) -> str:
 
 @app.post("/api/chat/stream")
 async def chat_stream(payload: dict[str, Any] = Body(default={})) -> StreamingResponse:
-    """The same turn, with brain.py's own progress forwarded as it happens.
-
-    reply_to is synchronous and blocks for as long as the model and the tools
-    take, so it runs on a worker thread and pushes each status onto a queue.
-    This end drains the queue and writes one server-sent event per item —
-    which is why the browser can show "Calling list_tasks…" while it is still
-    happening, rather than after the reply lands.
-    """
+    """Stream chat progress to the browser."""
     raw_phone, message = _read_request(payload)
     updates: queue.Queue = queue.Queue()
 
@@ -344,10 +258,9 @@ async def chat_stream(payload: dict[str, Any] = Body(default={})) -> StreamingRe
         except himedia.ApiRefused as refused:
             updates.put(("error", f"{refused.code}: {refused.message}"))
         except RuntimeError as no_key:
-            # No model key. Say it plainly — this is the first thing that goes
-            # wrong on a fresh clone.
+            # Handle missing API key
             updates.put(("error", str(no_key)))
-        except Exception as broke:  # a demo should explain itself
+        except Exception as broke:  # Explain unexpected errors
             logger.exception("chat failed")
             updates.put(("error", f"{type(broke).__name__}: {broke}"))
         finally:
@@ -372,17 +285,7 @@ async def chat_stream(payload: dict[str, Any] = Body(default={})) -> StreamingRe
 
 @app.get("/api/audit")
 def audit_tail(limit: int = 60, phone: str | None = None) -> dict[str, Any]:
-    """The tail of audit.log, for the panel that shows what the agent did.
-
-    Your own entries only. `phone` used to be optional, which meant leaving
-    it off returned every line for every person - each question they asked
-    and each tool that ran - and passing somebody else's number returned
-    theirs. It is now required and must be a number this device has proved
-    it holds.
-
-    Read, never written, and only ever the last few lines. The file is the
-    record of what happened; this endpoint does not get to edit it.
-    """
+    """Get recent audit log entries."""
     if not phone:
         raise HTTPException(400, "A phone number is required.")
     phone = _require_own_device(phone)
@@ -401,10 +304,9 @@ def audit_tail(limit: int = 60, phone: str | None = None) -> dict[str, Any]:
             try:
                 entry = json.loads(line)
             except json.JSONDecodeError:
-                continue  # a half-written line; the next read will have it
-            # Belt and braces. `phone` is required above, so the old
-            # `if phone and ...` was equivalent in practice - this just
-            # cannot be re-broken by making the parameter optional again.
+                continue  # Skip incomplete lines
+
+            # Keep only this user's entries
             if entry.get("phone") != phone:
                 continue
             entries.append(entry)
@@ -414,18 +316,12 @@ def audit_tail(limit: int = 60, phone: str | None = None) -> dict[str, Any]:
 
 @app.post("/api/reset")
 def reset(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
-    """Start over. `scope` decides how far back.
-
-    - "conversation" drops the history and any held write.
-    - "device"       also makes this number verify itself again, which is the
-                     only way to demo the code challenge twice in one run.
-    """
+    """Reset the conversation or device."""
     raw_phone = str(payload.get("phone", "")).strip()
     if not raw_phone:
         raise HTTPException(400, "No phone number given.")
 
-    # Clearing somebody's transcript is acting on their data, so it needs the
-    # same proof as reading it.
+    # Verify device before clearing data
     phone = _require_own_device(raw_phone)
     scope = payload.get("scope", "conversation")
 
@@ -443,13 +339,9 @@ def reset(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
     }
 
 
-# --- the built interface ---------------------------------------------------
-#
-# Mounted last, so every /api route above still wins. In development the Vite
-# server serves these files itself and this directory does not exist; in a
-# deployment there is only one process, so it serves both the API and the page
-# and there is no CORS and no proxy to configure.
+# Built interface
 
+# Mount UI after API routes
 _DIST = Path(__file__).resolve().parent.parent / "react" / "dist"
 
 if _DIST.is_dir():
