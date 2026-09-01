@@ -27,9 +27,19 @@ async function unwrap(response) {
 
   if (!response.ok) {
     const detail = data && data.detail;
-    throw new Error(
-      typeof detail === "string" ? detail : `HTTP ${response.status}`
-    );
+    if (typeof detail === "string") throw new Error(detail);
+
+    // A 500 with no JSON body is almost always the Vite dev proxy failing to
+    // reach the Python process, not the agent failing. Saying "HTTP 500"
+    // sends you looking in the wrong place; say which process is missing.
+    if (response.status === 500 && !data) {
+      throw new Error(
+        "The agent API is not answering on port 8000. Start it from the " +
+          "repository root, and leave that terminal open — the device " +
+          "verification code is printed there."
+      );
+    }
+    throw new Error(`HTTP ${response.status}`);
   }
   return data;
 }
