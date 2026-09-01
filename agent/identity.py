@@ -87,32 +87,6 @@ def forget(raw_phone: str | None = None) -> None:
         _cache.pop(tidy(raw_phone), None)
 
 
-_colleagues: dict[tuple[str, str, str], tuple[list[str], float]] = {}
-
-
-def colleagues_who_can(person: dict, module: str, level: str = "write") -> list[str]:
-    """Finds colleagues with the required permission."""
-    company_id = person["company"]["id"]
-    key = (company_id, module, level)
-
-    hit = _colleagues.get(key)
-    if hit and time.time() - hit[1] < CACHE_SECONDS:
-        return hit[0]
-
-    roles = {role["key"]: role for role in himedia.list_roles()}
-    names = []
-    for user in himedia.list_users(company_id=company_id):
-        if user["id"] == person["user"]["id"] or not user.get("is_active", True):
-            continue
-        role = roles.get(user.get("role_key"), {})
-        pretend = {"role": role, "permissions": role.get("permissions", {})}
-        if allowed(pretend, module, level):
-            names.append(user["full_name"])
-
-    _colleagues[key] = (names, time.time())
-    return names
-
-
 def describe(person: dict) -> str:
     """Returns a short description of the user."""
     user = person["user"]

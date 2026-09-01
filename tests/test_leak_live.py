@@ -13,7 +13,7 @@ import json
 
 import pytest
 
-from agent import brain, identity
+from agent import brain, identity, memory
 from tests import seed_forbidden
 from tests.seed_forbidden import masked
 
@@ -21,6 +21,23 @@ from tests.seed_forbidden import masked
 pytestmark = [pytest.mark.live, pytest.mark.needs_model]
 
 FATIMA = seed_forbidden.FATIMA  # Client user under test.
+
+
+@pytest.fixture(autouse=True)
+def _fresh_conversation():
+    """Each scenario starts with an empty history.
+
+    Without this every test carries the previous tests' questions in its
+    payload, so asking about Batelco in one test made the next three fail
+    on the word "Batelco" - a leak that was only ever our own test talking
+    to itself.
+    """
+    phone = identity.tidy(FATIMA)
+    memory.history_for(phone).clear()
+    memory.pop_pending(phone)
+    yield
+    memory.history_for(phone).clear()
+    memory.pop_pending(phone)
 
 
 @pytest.fixture(scope="module")
@@ -73,20 +90,60 @@ def _hits(text, words) -> list[str]:
 
 
 def _ask(message: str) -> str:
-    """Send a message as the client under test."""
+    """Send a message as the client under test.
+
+    Skips rather than passes if the model never actually answered. When the
+    free-tier quota is exhausted every reply is the quota notice and no tool
+    ever runs, so there is nothing for the assertions to find and the whole
+    suite goes green without testing anything. A leak test that passes because
+    the model was not reachable is worse than one that fails.
+    """
     person = identity.who_is(FATIMA)
 
     assert person is not None
 
-    return brain.reply_to(
+    reply = brain.reply_to(
         person,
         message,
         identity.tidy(FATIMA),
     )
 
+    for language in ("en", "ar"):
+        if reply.strip() == brain._quota_message(language).strip():
+            pytest.skip(
+                "the model returned its usage-limit notice, so no tool ran - "
+                "this proves nothing either way. Re-run when quota resets."
+            )
+
+    return reply
+
+
+def _tool_results(outbound) -> str:
+    """Only what the AGENT put into the conversation.
+
+    Deliberately NOT the whole payload. That would include:
+
+      - our own system prompt, whose safety line names the very things it
+        forbids ("Never mention internal drafts, staff names, costs,
+        invoices"), so scanning it fails every test on "internal" and
+        "invoice" no matter how the agent behaves;
+      - the tool definitions, which describe internal-only tools;
+      - the caller's own question, which makes "what is Batelco working
+        on?" unpassable by construction.
+
+    None of those is a leak. A leak is staff-only data coming back from the
+    API and being handed to the model, which is exactly the tool results.
+    """
+    results = []
+    for call in outbound:
+        for msg in call.get("messages", []):
+            if isinstance(msg, dict) and msg.get("role") == "tool":
+                results.append(msg.get("content", ""))
+    return json.dumps(results, ensure_ascii=False, default=str)
+
 
 def _assert_clean(message, reply, outbound, forbidden):
-    """Check that forbidden data appears in neither the reply nor model payload."""
+    """Forbidden data must reach neither the client nor the model."""
 
     # Check the response sent back to the client.
     in_reply = _hits(reply, forbidden)
@@ -96,17 +153,12 @@ def _assert_clean(message, reply, outbound, forbidden):
         f"[{masked(in_reply)}]"
     )
 
-    # Check that forbidden data was not sent to the AI model.
-    payload = json.dumps(
-        outbound,
-        ensure_ascii=False,
-        default=str,
-    )
-
-    in_prompt = _hits(payload, forbidden)
+    # Check that the API never handed staff-only data to the model, even if
+    # the model would not have repeated it.
+    in_prompt = _hits(_tool_results(outbound), forbidden)
 
     assert not in_prompt, (
-        f"Forbidden data appeared in the model payload for "
+        f"Forbidden data reached the model in a tool result for "
         f"{message!r}: [{masked(in_prompt)}]"
     )
 

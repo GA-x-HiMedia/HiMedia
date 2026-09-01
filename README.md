@@ -111,12 +111,17 @@ Open the address Vite prints (normally `http://localhost:5173`). Keep the `uvico
 pytest -v                        # no network needed
 RUN_LIVE_TESTS=1 pytest -v -s    # + real sandbox and model
 ```
+
+Tests skip rather than fail when what they need is missing: the sandbox ones need `RUN_LIVE_TESTS=1`, and the leak conversations additionally need a model key. A run with no key still covers every permission and filtering check.
+
+Each leak fix was verified by taking it back out and re-running its test. All of them failed without their fix, so none is passing by accident.
  
 ## What's not finished
  
 - **Device trust is basic.** A new phone/device gets a one-time code before it's trusted; after that, anyone holding that number is treated as that person. The code is currently written to the server log rather than sent out of band.
 - **No persistent storage.** Conversation history and pending confirmations live in memory, so restarting the server clears them.
 - **Confirmation matching is a fixed word list** ("yes"/"no" and a few variants), not full language understanding.
+- **Leak checks match words, not meaning.** A reply saying "your editor" instead of a name, or "twelve days overdue" instead of a figure, passes every check and is still a leak. The real defence is that those values are filtered out before the prompt is built, so the model never receives them.
 ## Project layout
  
 ```
