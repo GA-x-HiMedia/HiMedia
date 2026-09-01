@@ -154,7 +154,7 @@ def reply_to(person: dict, message: str, phone: str, on_status: Callable[[str], 
 
     if pending is not None:
         return _finish(
-            _handle_pending_reply(person, phone, message, pending, language),
+            _handle_pending_reply(person, phone, message, pending),
             0,
         )
 
@@ -329,8 +329,9 @@ _PHRASE_CANCELLED_EN = (
 )
 
 
-def _handle_pending_reply(person: dict, phone: str, message: str, pending: dict, language: str) -> str:
-    """Resolves a held confirmation."""
+def _handle_pending_reply(person: dict, phone: str, message: str, pending: dict) -> str:
+    """The language is read from the message itself, just below, so it is not
+    a parameter - passing one in would be ignored."""
     stripped = message.strip().lower()
     language = _language_of(message)
 
