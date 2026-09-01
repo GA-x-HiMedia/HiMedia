@@ -110,6 +110,36 @@ def test_the_exact_phrase_is_accepted_with_surrounding_whitespace():
     assert len(calls) == 1
 
 
+def test_the_english_phrase_also_approves():
+    """An English speaker should not need an Arabic keyboard to approve
+    something. The gate works because the phrase cannot be typed by reflex,
+    not because of which script it is written in."""
+    reply, calls = _answer(brain.CONFIRM_PHRASE_EN)
+
+    assert len(calls) == 1
+    assert not memory.has_pending(PHONE)
+
+
+def test_the_english_phrase_is_not_case_sensitive():
+    reply, calls = _answer(brain.CONFIRM_PHRASE_EN.lower())
+
+    assert len(calls) == 1
+
+
+def test_either_phrase_works_whatever_language_they_write_in():
+    """Both are always accepted. Only the phrase we ASK for changes."""
+    assert brain.is_confirm_phrase(brain.CONFIRM_PHRASE)
+    assert brain.is_confirm_phrase(brain.CONFIRM_PHRASE_EN)
+    assert brain.phrase_for("ar") == brain.CONFIRM_PHRASE
+    assert brain.phrase_for("en") == brain.CONFIRM_PHRASE_EN
+
+
+def test_near_misses_of_the_english_phrase_still_cancel():
+    for text in ("FINAL", "CONFIRMATION", "final confirm",
+                 "I give FINAL CONFIRMATION now"):
+        assert not brain.is_confirm_phrase(text), text
+
+
 @pytest.mark.parametrize(
     "reply_text",
     ["ok", "تمام", "yes", "اي", "نعم", "sure"],
@@ -125,7 +155,8 @@ def test_a_plain_yes_cancels_a_destructive_write(reply_text):
     else:
         assert "cancelled" in reply.lower()
 
-    assert brain.CONFIRM_PHRASE in reply
+    # The reply must name a phrase that actually works, in their language.
+    assert brain.phrase_for(brain._language_of(reply_text)) in reply
 
 
 def test_an_empty_reply_cancels():
@@ -147,7 +178,8 @@ def test_a_partial_match_cancels():
     assert len(calls) == 0
     assert not memory.has_pending(PHONE)
     assert "ألغيت" in reply
-    assert brain.CONFIRM_PHRASE in reply
+    # The reply must name a phrase that actually works, in their language.
+    assert brain.phrase_for(brain._language_of(partial)) in reply
 
 
 def test_a_longer_phrase_containing_it_cancels():
@@ -163,6 +195,7 @@ def test_the_arabic_cancellation_message_is_used_for_an_arabic_speaker():
     reply, calls = _answer("تمام", locale="ar")
 
     assert len(calls) == 0
+    # An Arabic speaker is asked for the Arabic phrase.
     assert brain.CONFIRM_PHRASE in reply
     assert "ألغيت" in reply
 
