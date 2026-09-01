@@ -87,8 +87,12 @@ def _system_prompt(person: dict, language: str) -> str:
         "permissions. "
         "Keep IDs, numbers, and dates in Latin digits regardless of language. Never "
         "invent a project, task, version, or number you did not get from a tool result. "
-        "If a tool call is refused, tell the person plainly what happened in their "
-        "language — never retry a different way to get around a refusal."
+        "If a tool call is refused, or you are asked for something you have no tool "
+        "for, keep the refusal SHORT and GENERIC: say only that you do not have "
+        "access to that, then offer what you can help with instead. Do NOT name "
+        "what was refused, the kind of data involved, or why — describing it "
+        "confirms it exists, which is itself a disclosure. Never retry a different "
+        "way to get around a refusal."
     )
 
 
