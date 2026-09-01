@@ -1,0 +1,11 @@
+# What the deployed chat service needs, and nothing else.
+#
+# requirements.txt carries the RAG stack as well — sentence-transformers pulls
+# in PyTorch, roughly 2.5 GB, which the web service never imports. Installing
+# it would make every deploy slow and can exhaust a small build container.
+
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+httpx==0.27.2
+openai==3.3.1
+python-dotenv==1.0.1

@@ -8,9 +8,15 @@ body {
   margin: 0;
   background: var(--cream);
   color: var(--ink);
-  font: 15px/1.55 var(--sans);
+  font: 15.5px/1.6 var(--sans);
+  letter-spacing: -0.006em;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
+
+/* Arabic sits a touch larger than Latin at the same nominal size, and reads
+   better with a little more line height. */
+[dir="rtl"] { line-height: 1.8; letter-spacing: 0; }
 
 button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; border: none; background: none; }
@@ -85,13 +91,20 @@ button { cursor: pointer; border: none; background: none; }
 
 .logo-mark.lg { width: 44px; height: 44px; font-size: 17px; border-radius: 13px; }
 
-.logo-text b { display: block; font-size: 14.5px; line-height: 1.25; }
+.logo-text b {
+  display: block;
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 400;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+}
 .logo-text span { display: block; font-size: 11.5px; color: var(--muted); }
 
 .eyebrow {
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--orange);
 }
@@ -159,7 +172,7 @@ button { cursor: pointer; border: none; background: none; }
   display: grid;
   grid-template-columns: 268px minmax(0, 1fr) 316px;
   height: 100%;
-  background: var(--cream);
+  background: var(--chat-ground);
 }
 
 .rail {
@@ -203,6 +216,7 @@ button { cursor: pointer; border: none; background: none; }
   flex-direction: column;
   min-height: 0;
   min-width: 0;
+  background: var(--chat-ground);
 }
 
 .chat-head {
@@ -215,7 +229,14 @@ button { cursor: pointer; border: none; background: none; }
 }
 
 .chat-head .who { flex: 1; min-width: 0; }
-.chat-head .who b { display: block; font-size: 15px; }
+.chat-head .who b {
+  display: block;
+  font-family: var(--display);
+  font-size: 21px;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+}
 .chat-head .who span { font-size: 12px; color: var(--muted); }
 
 .badge {
@@ -294,15 +315,15 @@ button { cursor: pointer; border: none; background: none; }
 }
 
 .bubble.agent {
-  background: var(--white);
-  border: 1px solid var(--warm-grey);
-  border-bottom-left-radius: 5px;
+  background: var(--bubble-them);
+  border: 1px solid transparent;
+  border-bottom-left-radius: 6px;
 }
 
 .bubble.mine {
-  background: var(--orange);
-  color: var(--white);
-  border-bottom-right-radius: 5px;
+  background: var(--bubble-me);
+  color: var(--bubble-me-text);
+  border-bottom-right-radius: 6px;
 }
 
 .bubble.done {
@@ -353,8 +374,9 @@ button { cursor: pointer; border: none; background: none; }
   padding: 1px 5px;
 }
 .bubble.mine .md code {
-  background: var(--on-orange-soft);
-  border-color: var(--on-orange-line);
+  background: var(--on-ink-soft);
+  border-color: var(--on-ink-line);
+  color: var(--bubble-me-text);
 }
 
 /* ============================ status line ============================ */
@@ -485,8 +507,8 @@ button { cursor: pointer; border: none; background: none; }
 
 .send {
   flex: none;
-  width: 44px;
-  height: 44px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
   background: var(--orange);
   color: var(--white);
@@ -494,7 +516,10 @@ button { cursor: pointer; border: none; background: none; }
   display: grid;
   place-items: center;
   box-shadow: var(--shadow-sm);
+  transition: transform .12s ease, box-shadow .12s ease;
 }
+
+.send:not(:disabled):hover { transform: translateY(-1px); box-shadow: var(--shadow-md); }
 
 .send:disabled { opacity: .35; cursor: default; }
 
