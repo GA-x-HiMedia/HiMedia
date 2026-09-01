@@ -21,7 +21,20 @@ def _ask(phone: str, message: str) -> str:
     """Sends a message as a known user."""
     person = identity.who_is(phone)
     assert person is not None, f"{phone} should resolve to a known HiMedia user"
-    return brain.reply_to(person, message, identity.tidy(phone))
+    reply = brain.reply_to(person, message, identity.tidy(phone))
+
+    # Skip rather than pass when the model never actually answered. Once the
+    # free-tier quota is spent every reply is the quota notice, no tool runs,
+    # and these assertions have nothing to check - so the suite goes green
+    # without testing anything, which is worse than failing.
+    for language in ("en", "ar"):
+        if reply.strip() == brain._quota_message(language).strip():
+            pytest.skip(
+                "the model returned its usage-limit notice, so nothing was "
+                "exercised. Re-run when the quota resets."
+            )
+
+    return reply
 
 
 def test_khalid_gets_his_open_tasks_in_arabic():
