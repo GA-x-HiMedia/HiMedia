@@ -109,7 +109,8 @@ def _quota_message(language: str) -> str:
     """Returns a message when the API usage limit is reached."""
     if language == "ar":
         return "الخدمة وصلت الحد اليومي مؤقتًا. جرّب بعد شوي أو كلّم فريق الدعم."
-    return "The assistant has hit its daily usage limit for now. Please try again later."
+    else:
+        return "The assistant has hit its daily usage limit for now. Please try again later."
 
 
 def _emit(on_status: Callable[[str], None] | None, text: str) -> None:
@@ -120,7 +121,7 @@ def _emit(on_status: Callable[[str], None] | None, text: str) -> None:
 
 def _language_of(message: str) -> str:
     """Detects whether a message contains Arabic text."""
-    return "ar" if any("\u0600" <= ch <= "\u06ff" for ch in message) else "en"
+    return "ar" if any("؀" <= ch <= "ۿ" for ch in message) else "en"
 
 
 def reply_to(person: dict, message: str, phone: str, on_status: Callable[[str], None] | None = None) -> str:
@@ -152,7 +153,7 @@ def reply_to(person: dict, message: str, phone: str, on_status: Callable[[str], 
     pending = memory.peek_pending(phone)
 
     if pending is not None:
-        return _finish(_handle_pending_reply(person, phone, message, pending), 0)
+        return _finish(_handle_pending_reply(person, phone, message, pending, language), 0)
 
     tools = tools_for(person)
     by_name = {t["function"]["name"]: t for t in tools}
@@ -182,7 +183,6 @@ def reply_to(person: dict, message: str, phone: str, on_status: Callable[[str], 
         except RateLimitError:
             _log(person, phone, "gemini.chat.completions", {}, "rate_limited", 0.0, False)
             return _finish(_quota_message(language), round_number)
-
         messages.append(answer)
 
         if not answer.tool_calls:
@@ -230,16 +230,13 @@ def reply_to(person: dict, message: str, phone: str, on_status: Callable[[str], 
 
                 # Ask for confirmation in the same language as the current message.
                 if needs_exact_phrase(tool["function"]["name"], args):
-                    if language == "ar":
-                        ask = f"{preview}.\nللتأكيد اكتب «{CONFIRM_PHRASE}» بالضبط."
-                    else:
-                        ask = f"{preview}.\nTo confirm, reply with exactly: {CONFIRM_PHRASE}"
+                    ask = (
+                        f"{preview}.\n"
+                        f"للتأكيد اكتب «{CONFIRM_PHRASE}» بالضبط. "
+                        f"(to confirm, reply with exactly: {CONFIRM_PHRASE})"
+                    )
                 else:
-                    if language == "ar":
-                        ask = f"{preview}. تأكيد؟"
-                    else:
-                        ask = f"{preview}. Confirm?"
-
+                    ask = f"{preview}. تأكيد؟ (confirm?)"
                 return _finish(ask, round_number)
 
             else:
@@ -269,11 +266,10 @@ def reply_to(person: dict, message: str, phone: str, on_status: Callable[[str], 
             })
 
     if language == "ar":
-        final_message = "ما قدرت أكمل الطلب. جرّب تسألني بطريقة ثانية."
+        fallback = "ما قدرت أكمل الطلب. جرّب تسأل بطريقة ثانية."
     else:
-        final_message = "I couldn't complete the request. Please try asking in a different way."
-
-    return _finish(final_message, MAX_ROUNDS)
+        fallback = "I couldn't complete that request. Try asking a different way."
+    return _finish(fallback, MAX_ROUNDS)
 
 
 _PHRASE_CANCELLED_AR = (
@@ -287,25 +283,16 @@ _PHRASE_CANCELLED_EN = (
 )
 
 
-def _handle_pending_reply(person: dict, phone: str, message: str, pending: dict) -> str:
-    # Detect the language from the current confirmation message.
+def _handle_pending_reply(person: dict, phone: str, message: str, pending: dict, language: str) -> str:
+    """Resolves a held confirmation."""
     stripped = message.strip().lower()
     language = _language_of(message)
 
     if needs_exact_phrase(pending["tool"]["function"]["name"], pending["args"]):
         if message.strip() != CONFIRM_PHRASE:
             held = memory.pop_pending(phone)
-
-            _log(
-                person,
-                phone,
-                held["tool"]["function"]["name"],
-                held["args"],
-                "cancelled: confirmation phrase not given",
-                0.0,
-                False,
-            )
-
+            _log(person, phone, held["tool"]["function"]["name"], held["args"],
+                 "cancelled: confirmation phrase not given", 0.0, False)
             template = _PHRASE_CANCELLED_AR if language == "ar" else _PHRASE_CANCELLED_EN
             reply = template.format(phrase=CONFIRM_PHRASE)
 
@@ -313,7 +300,6 @@ def _handle_pending_reply(person: dict, phone: str, message: str, pending: dict)
             memory.remember(phone, "assistant", reply)
 
             return reply
-
         # Continue through the normal confirmation flow.
         stripped = "yes"
 
@@ -324,11 +310,11 @@ def _handle_pending_reply(person: dict, phone: str, message: str, pending: dict)
 
         # Re-check permissions before executing the action.
         if find_tool(tool["function"]["name"], tools_for(person)) is None:
-            if language == "ar":
-                reply = "ما عندك صلاحية لهذا الإجراء الحين."
-            else:
-                reply = "You no longer have permission for that action."
-
+            reply = (
+                "ما عندك صلاحية لهذا الإجراء الحين."
+                if language == "ar"
+                else "You no longer have permission for that action."
+            )
             _log(person, phone, tool["function"]["name"], args, reply, 0.0, False)
             memory.remember(phone, "user", message)
             memory.remember(phone, "assistant", reply)
@@ -339,20 +325,10 @@ def _handle_pending_reply(person: dict, phone: str, message: str, pending: dict)
             try:
                 tool["run"](person, args)
                 ok = True
-
-                if language == "ar":
-                    reply = f"تم. {describe(tool['function']['name'], args)}"
-                else:
-                    reply = f"Done. {describe(tool['function']['name'], args)}"
-
+                reply = f"{'تم' if language == 'ar' else 'Done'}. {describe(tool['function']['name'], args)}"
             except ApiRefused as e:
                 ok = False
-
-                if language == "ar":
-                    reply = f"تعذّر: {e.message}"
-                else:
-                    reply = f"Could not do that: {e.message}"
-
+                reply = f"{'تعذّر' if language == 'ar' else 'Could not do that'}: {e.message}"
         _log(person, phone, tool["function"]["name"], args, reply, t.elapsed_ms, ok)
 
         memory.remember(phone, "user", message)
@@ -362,22 +338,8 @@ def _handle_pending_reply(person: dict, phone: str, message: str, pending: dict)
 
     if stripped in NEGATIVE:
         held = memory.pop_pending(phone)
-
-        _log(
-            person,
-            phone,
-            held["tool"]["function"]["name"],
-            held["args"],
-            "cancelled by user",
-            0.0,
-            False,
-        )
-
-        if language == "ar":
-            reply = "تم الإلغاء."
-        else:
-            reply = "Cancelled."
-
+        _log(person, phone, held["tool"]["function"]["name"], held["args"], "cancelled by user", 0.0, False)
+        reply = "تم الإلغاء." if language == "ar" else "Cancelled."
         memory.remember(phone, "user", message)
         memory.remember(phone, "assistant", reply)
 
@@ -387,8 +349,6 @@ def _handle_pending_reply(person: dict, phone: str, message: str, pending: dict)
     tool = pending["tool"]
     args = pending["args"]
     preview = describe(tool["function"]["name"], args)
-
     if language == "ar":
-        return f"عندك طلب معلّق: {preview}. أكّد بكتابة «أي» أو ألغِه بكتابة «لا»."
-
+        return f"لسا عندك طلب معلّق: {preview}. أكّد بكتابة «أي» أو الغِ بكتابة «لا»."
     return f"You still have a pending action: {preview}. Reply 'yes' to confirm or 'no' to cancel."
