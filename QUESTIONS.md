@@ -6,6 +6,29 @@ to office hours or the client/instructional check-in (Handbook Ch. 36
 
 ## Format
 
+- **Question:** Should the `client_reviewer` role really hold `reviews:write`?
+- **Why it matters:** The live permission map grants it, so `tools_for` offers
+  that role `decide_version` — approve or reject a deliverable. But there is a
+  separate `client_approver` role for exactly that, which suggests a reviewer
+  is meant to comment rather than decide. Today a client reviewer can approve
+  work on the client's behalf.
+- **Already tried:** Confirmed live: Ali Hasan (client_reviewer @ Bank of
+  Salam) is granted `reviews:write` and is offered `decide_version`, the same
+  as Fatima (client_approver). We have NOT worked around it — Ch. 10 says
+  never hardcode against the live map, so the agent follows the API.
+- **Status:** open — needs the client, not a code change
+
+- **Question:** Can a version comment be marked internal?
+- **Why it matters:** Task comments carry `client_visible` and we honour it.
+  Version comments carry no such flag, so any note left on a version the
+  client can already see reaches them in full. Only the author's name is
+  hidden. There is no way to leave an internal note on a client-visible
+  version.
+- **Already tried:** Checked live across every version both a client and a
+  staff member can see: 0 of 10 version comments carried a `client_visible`
+  field at all.
+- **Status:** open — API gap, documented in the README
+
 - **Question:**
 - **Why it matters:**
 - **Already tried:**
