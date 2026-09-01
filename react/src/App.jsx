@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import * as api from "./api.js";
-import { initials, prettyRole } from "./format.jsx";
+import { initials, isArabic, prettyRole } from "./format.jsx";
 
 import AuditPanel from "./components/AuditPanel.jsx";
 import Composer from "./components/Composer.jsx";
@@ -123,8 +123,9 @@ export default function App() {
         ...restored,
         makeMessage(
           "system",
-          `Speaking as ${found.name} — ${prettyRole(found.role)} at ${found.company}. ` +
-            `${found.offered} of ${found.total} tools survived the permission filter.`,
+          // The tool count lives in the Access panel, where somebody who wants
+          // it can look. It does not belong in the conversation.
+          `Speaking as ${found.name} — ${prettyRole(found.role)} at ${found.company}.`,
           { kind: "note" }
         ),
       ]);
@@ -313,6 +314,12 @@ export default function App() {
 
   const awaitingCode = !session.trusted_device && codeIssued;
 
+  // Which language to offer the confirm buttons in: the one the person was
+  // last writing in. People switch mid-conversation, so this is read per
+  // message rather than fixed from their profile locale.
+  const lastMine = [...messages].reverse().find((m) => m.from === "me");
+  const language = isArabic(lastMine?.text || "") ? "ar" : "en";
+
   return (
     <div className="shell">
       <Rail
@@ -390,7 +397,14 @@ export default function App() {
           <div ref={bottom} />
         </div>
 
-        {pending && <PendingBanner pending={pending} busy={busy} onSay={send} />}
+        {pending && (
+          <PendingBanner
+            pending={pending}
+            busy={busy}
+            language={language}
+            onSay={send}
+          />
+        )}
 
         <Composer
           value={draft}

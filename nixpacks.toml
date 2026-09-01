@@ -1,0 +1,8 @@
+# Railway build. Python only: the interface is committed pre-built in
+# react/dist, so no Node toolchain is needed in the deploy image.
+
+[phases.install]
+cmds = ["pip install -r requirements-web.txt"]
+
+[start]
+cmd = "uvicorn agent.web:app --host 0.0.0.0 --port $PORT"

@@ -31,11 +31,13 @@ import logging
 import os
 import queue
 import threading
+from pathlib import Path
 from typing import Any
 
 from fastapi import Body, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from . import audit, brain, himedia, identity, memory, tools
 from .config import API_KEY, GEMINI_API_KEY
@@ -439,3 +441,18 @@ def reset(payload: dict[str, Any] = Body(default={})) -> dict[str, Any]:
         "scope": scope,
         "trusted_device": identity.is_trusted_device(phone),
     }
+
+
+# --- the built interface ---------------------------------------------------
+#
+# Mounted last, so every /api route above still wins. In development the Vite
+# server serves these files itself and this directory does not exist; in a
+# deployment there is only one process, so it serves both the API and the page
+# and there is no CORS and no proxy to configure.
+
+_DIST = Path(__file__).resolve().parent.parent / "react" / "dist"
+
+if _DIST.is_dir():
+    app.mount("/", StaticFiles(directory=str(_DIST), html=True), name="ui")
+else:
+    logger.info("react/dist not built — API only. Run `npm run build` in react/.")

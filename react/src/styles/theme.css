@@ -3,50 +3,78 @@
  * Every colour in this interface is named here and used nowhere else as a
  * literal. Changing a brand colour is a change to this file only.
  *
- * The status colours are not decoration — each one carries the same meaning
- * it carries in the presentation deck, and the interface uses them that way:
- * green for a write that went through, red for a refusal or a point of no
- * return, peach for something that needs the person to look before acting.
+ * --- how the colours are distributed ---
+ *
+ * The brand colours are fixed; how much of each you use is the design. Orange
+ * is the loudest thing in the palette, so it is spent on ONE idea: *act*. The
+ * send button, the person you are speaking as, the top edge of a decision you
+ * owe. It is deliberately not used for your own messages — when everything is
+ * orange, nothing is.
+ *
+ * Your own messages are charcoal instead. Dark on a warm ground reads as
+ * "you" instantly, costs the palette nothing, and leaves orange free.
+ *
+ * Depth comes from three warm greys rather than from shadows: white for the
+ * chrome (rails, header, composer), a slightly recessed panel for the
+ * conversation itself, cream for the page behind it all.
+ *
+ * The status colours keep the meanings they carry in the deck — green for a
+ * write that went through, red for a refusal or a point of no return, peach
+ * for something to read before acting — and are used for nothing else.
  */
 
 :root {
   /* --- primary --- */
-  --cream: #f6f3ec;        /* page background */
-  --ink: #15151a;          /* headings, dark blocks */
-  --white: #ffffff;        /* cards, panels */
-  --orange: #ff5a2b;       /* labels, highlights, active state, emphasis */
+  --cream: #f6f3ec;        /* the page */
+  --ink: #15151a;          /* headings, and your own messages */
+  --white: #ffffff;        /* chrome: rails, header, composer, agent replies */
+  --orange: #ff5a2b;       /* act: send, active, decisions you owe */
 
   /* --- secondary --- */
   --warm-grey: #e0ddd9;    /* borders, dividers, inactive */
   --muted: #716260;        /* secondary text, captions */
-  --panel: #f3f0e8;        /* subtle contrast against the cream */
+  --panel: #f3f0e8;        /* the recessed surface the conversation sits on */
 
   /* --- status --- */
-  --green: #259563;        /* safe flow, completed, allowed */
-  --green-pale: #e9f6ea;   /* success bubbles and backgrounds */
-  --red: #be3f46;          /* limitations, warnings, refusals */
-  --peach: #f7e8e0;        /* callouts, proof statements, held actions */
+  --green: #259563;        /* a write that went through, a tool allowed */
+  --green-pale: #e9f6ea;   /* success backgrounds */
+  --red: #be3f46;          /* refusals, and points of no return */
+  --peach: #f7e8e0;        /* read this before acting */
+
+  /* --- roles, so components never reach for a raw colour --- */
+  --chat-ground: var(--panel);      /* behind the transcript */
+  --bubble-them: var(--white);      /* the agent */
+  --bubble-me: var(--ink);          /* you */
+  --bubble-me-text: var(--cream);   /* warm white, not pure white, on charcoal */
 
   /* --- derived, so the shades stay in the family --- */
-  --orange-soft: rgba(255, 90, 43, 0.10);
-  --orange-line: rgba(255, 90, 43, 0.28);
+  --orange-soft: rgba(255, 90, 43, 0.09);
+  --orange-line: rgba(255, 90, 43, 0.26);
   --ink-soft: rgba(21, 21, 26, 0.55);
-  --scrim: rgba(21, 21, 26, 0.35);      /* behind a drawer on a phone */
-  --on-orange-soft: rgba(255, 255, 255, 0.22);   /* code inside an orange bubble */
-  --on-orange-line: rgba(255, 255, 255, 0.35);
-  --shadow-sm: 0 1px 2px rgba(21, 21, 26, 0.05);
-  --shadow-md: 0 2px 10px rgba(21, 21, 26, 0.06);
-  --shadow-lg: 0 12px 40px rgba(21, 21, 26, 0.12);
+  --scrim: rgba(21, 21, 26, 0.35);
+  --on-ink-soft: rgba(246, 243, 236, 0.16);   /* code inside a charcoal bubble */
+  --on-ink-line: rgba(246, 243, 236, 0.26);
 
-  /* --- shape and type --- */
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 18px;
+  /* Shadows are warm and very soft — the depth comes from the greys, not
+     from dark halos, which look grubby on a cream ground. */
+  --shadow-sm: 0 1px 2px rgba(113, 98, 96, 0.07);
+  --shadow-md: 0 4px 16px rgba(113, 98, 96, 0.09);
+  --shadow-lg: 0 16px 44px rgba(113, 98, 96, 0.18);
+
+  /* --- shape --- */
+  --r-sm: 9px;
+  --r-md: 14px;
+  --r-lg: 20px;
   --r-pill: 999px;
 
-  --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
-  --arabic: "Segoe UI", "Noto Naskh Arabic", "Dubai", Tahoma, sans-serif;
-  --mono: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
+  /* --- type --- */
+  /* Display is for names and nothing else — the wordmark, and whoever you are
+     speaking as. A serif at 15px in a chat bubble is a mistake; at 20px on a
+     name it is the whole personality of the thing. */
+  --display: "Instrument Serif", Georgia, "Times New Roman", serif;
+  --sans: "Instrument Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --arabic: "Readex Pro", "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
 
   color-scheme: light;
 }

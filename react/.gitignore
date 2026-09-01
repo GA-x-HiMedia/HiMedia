@@ -1,4 +1,5 @@
 node_modules/
-dist/
+# dist/ is committed on purpose: the Railway image is Python-only, so the
+# interface is built here and shipped. Rebuild before every push.
 .vite/
 *.local

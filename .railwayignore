@@ -1,0 +1,8 @@
+.venv/
+react/node_modules/
+.git/
+data/
+data_sandbox/
+__pycache__/
+.pytest_cache/
+*.log
