@@ -8,18 +8,14 @@ __pycache__/
 .venv/
 venv/
 .env/
+.env
 
 vectorstore/
 
-scr/
 
 __pycache__/
 vectorstore/
 
-# Secrets. main's .gitignore only had `.env/` (a directory), which does not
-# match the `.env` FILE holding HIMEDIA_API_KEY and GEMINI_API_KEY.
-.env
-
-# Conversation trace - regenerated on every run, and it contains real
-# task titles and staff names. Deleted from the repo on main; keep it out.
+audit.log/ 
 audit.log
+.env
