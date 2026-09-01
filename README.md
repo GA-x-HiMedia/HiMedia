@@ -64,7 +64,7 @@ Five write tools, layered on top:
  
 ## How permissions work
 
-Every message starts by asking the API who owns the number and what they may do — nothing is hard-coded on our side. **The filtering happens in `agent/tools.py`**: `tools_for()` throws away any tool this person's role, audience or approval rank does not allow, so the model is never even offered it. Each tool then re-checks that the specific task or version belongs to the caller before it acts, because the API filters lists by phone number but hands over single items to anyone who names one.
+Every message starts by asking the API who owns the number and what they may do — nothing is hard-coded on our side. **The filtering happens in `agent/tools.py`**: `tools_for()` throws away any tool this person's role, audience or approval rank does not allow, so the model is never even offered it. Each tool then re-checks that the specific task or version belongs to the caller before it acts, because the API filters lists by phone number but hands over single items to anyone who names one. Refusals are deliberately short and generic — naming what was withheld would confirm it exists, which is a disclosure in itself.
 
 ## Safety: nothing changes without a yes
  
@@ -125,6 +125,7 @@ Each leak fix was verified by taking it back out and re-running its test. All of
 - **Device trust is basic.** A new phone/device gets a one-time code before it's trusted; after that, anyone holding that number is treated as that person. The code is currently written to the server log rather than sent out of band.
 - **No persistent storage.** Conversation history and pending confirmations live in memory, so restarting the server clears them.
 - **Confirmation matching is a fixed word list** ("yes"/"no" and a few variants), not full language understanding.
+- **Version comments cannot be marked internal.** Task comments carry a `client_visible` flag and we honour it; version comments carry no such flag in the API, so any note left on a version the client can already see is shown to them. Only the author's name is hidden.
 - **Leak checks match words, not meaning.** A reply saying "your editor" instead of a name, or "twelve days overdue" instead of a figure, passes every check and is still a leak. The real defence is that those values are filtered out before the prompt is built, so the model never receives them.
 ## Project layout
  
