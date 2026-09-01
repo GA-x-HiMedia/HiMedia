@@ -125,7 +125,7 @@ Each leak fix was verified by taking it back out and re-running its test. All of
 - **Device trust is basic.** A new phone/device gets a one-time code before it's trusted; after that, anyone holding that number is treated as that person. The code is currently written to the server log rather than sent out of band.
 - **No persistent storage.** Conversation history and pending confirmations live in memory, so restarting the server clears them.
 - **Confirmation matching is a fixed word list** ("yes"/"no" and a few variants), not full language understanding.
-- **Version comments cannot be marked internal.** Task comments carry a `client_visible` flag and we honour it; version comments carry no such flag in the API, so any note left on a version the client can already see is shown to them. Only the author's name is hidden.
+- **Version notes can't be marked internal.** A task comment can be hidden from the client; a version comment can't, so a client reads every note on any version they can see. We hide who wrote it, not what it says.
 - **Leak checks match words, not meaning.** A reply saying "your editor" instead of a name, or "twelve days overdue" instead of a figure, passes every check and is still a leak. The real defence is that those values are filtered out before the prompt is built, so the model never receives them.
 ## Project layout
  
