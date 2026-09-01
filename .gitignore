@@ -17,4 +17,5 @@ __pycache__/
 vectorstore/
 
 audit.log/ 
+audit.log
 .env
