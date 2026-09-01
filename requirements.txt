@@ -1,12 +1,12 @@
 fastapi==0.115.0
 uvicorn[standard]==0.30.6
 httpx==0.27.2
-openai>=2.45.0
+openai==3.3.1
 python-dotenv==1.0.1
 
 # testing
 pytest==8.3.3
-Faker
+Faker==40.37.0
 
 # RAG
 langchain==1.3.18

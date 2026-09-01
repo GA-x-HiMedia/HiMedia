@@ -16,6 +16,7 @@ from .tools import NOT_YOURS, describe, find_tool, is_destructive, may_act_on, p
 _ai_client: OpenAI | None = None
 
 MODEL = "gemini-3.6-flash"
+MAX_MESSAGE = 2000   # longest incoming message we will process
 MAX_ROUNDS = 6  # Prevent unlimited tool-call loops.
 
 
@@ -129,6 +130,9 @@ def _language_of(message: str) -> str:
 
 
 def reply_to(person: dict, message: str, phone: str, on_status: Callable[[str], None] | None = None) -> str:
+    # One cap for both entry points. web.py trims before calling; the WhatsApp
+    # webhook did not, so a very long message went straight to the model.
+    message = (message or "")[:MAX_MESSAGE]
     turn = audit.Timer()
     turn.__enter__()
 
