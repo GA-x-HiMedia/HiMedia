@@ -102,6 +102,14 @@ def _destructive_label(tool: dict) -> str:
     return "yes" if verdict else "no"
 
 
+def _language_in_use(phone: str) -> str:
+    """Which language this person is writing in, from their last message."""
+    for entry in reversed(memory.history_for(phone)):
+        if isinstance(entry, dict) and entry.get("role") == "user":
+            return brain._language_of(str(entry.get("content") or ""))
+    return "en"
+
+
 def _pending_view(phone: str) -> dict[str, Any] | None:
     """Get the pending action waiting for confirmation."""
     held = memory.peek_pending(phone)
@@ -114,7 +122,13 @@ def _pending_view(phone: str) -> dict[str, Any] | None:
         "args": held["args"],
         "summary": tools.describe(name, held["args"]),
         "needs_phrase": brain.needs_exact_phrase(name, held["args"]),
-        "phrase": brain.CONFIRM_PHRASE,
+        # The phrase to SHOW is the one for the language they are writing in,
+        # decided the same way brain.py decides it. Hardcoding the Arabic one
+        # here meant the browser asked an English speaker for Arabic even
+        # though the terminal asked correctly.
+        "phrase": brain.phrase_for(_language_in_use(phone)),
+        # Both always work, whichever is displayed.
+        "phrases": list(brain.CONFIRM_PHRASES),
     }
 
 
@@ -128,7 +142,7 @@ def health() -> dict[str, Any]:
         "model": brain.MODEL,
         "model_key": bool(GEMINI_API_KEY),
         "sandbox_key": bool(API_KEY),
-        "confirm_phrase": brain.CONFIRM_PHRASE,
+        "confirm_phrases": list(brain.CONFIRM_PHRASES),
     }
 
 
